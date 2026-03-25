@@ -1208,6 +1208,62 @@ func TestCopySubset_MultiSourceScoping(t *testing.T) {
 	}
 }
 
+func TestCopySubset_LegacySourceWithoutOAuthApp(t *testing.T) {
+	srcDir := t.TempDir()
+	dstDir := filepath.Join(t.TempDir(), "dst")
+
+	// Create a source DB, then drop the oauth_app column to simulate
+	// a pre-oauth_app database.
+	srcDB := createTestSourceDB(t, srcDir, 3)
+
+	db, err := sql.Open("sqlite3", srcDB+"?_foreign_keys=OFF")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// SQLite doesn't support DROP COLUMN before 3.35. Rebuild the
+	// table without oauth_app to simulate an old schema.
+	_, err = db.Exec(`
+		CREATE TABLE sources_old AS
+			SELECT id, source_type, identifier, display_name,
+			       google_user_id, last_sync_at, sync_cursor,
+			       sync_config, created_at, updated_at
+			FROM sources;
+		DROP TABLE sources;
+		ALTER TABLE sources_old RENAME TO sources;
+	`)
+	if err != nil {
+		t.Fatalf("rebuild sources without oauth_app: %v", err)
+	}
+	_ = db.Close()
+
+	// CopySubset should succeed with NULL oauth_app in destination
+	result, err := CopySubset(srcDB, dstDir, 3)
+	if err != nil {
+		t.Fatalf("CopySubset from legacy DB: %v", err)
+	}
+	if result.Messages != 3 {
+		t.Errorf("Messages = %d, want 3", result.Messages)
+	}
+
+	// Verify oauth_app is NULL in the destination
+	dstDB, err := sql.Open("sqlite3",
+		filepath.Join(dstDir, "msgvault.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = dstDB.Close() }()
+
+	var oauthApp sql.NullString
+	if err := dstDB.QueryRow(
+		"SELECT oauth_app FROM sources",
+	).Scan(&oauthApp); err != nil {
+		t.Fatalf("query oauth_app: %v", err)
+	}
+	if oauthApp.Valid {
+		t.Errorf("oauth_app = %q, want NULL", oauthApp.String)
+	}
+}
+
 func TestCopySubset_ControlCharInPath(t *testing.T) {
 	dstDir := filepath.Join(t.TempDir(), "dst")
 	base := t.TempDir()

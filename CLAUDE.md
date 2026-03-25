@@ -6,6 +6,8 @@ When a task involves multiple steps (e.g., implement + commit + PR), complete AL
 
 Always commit after every turn. Don't wait for the user to ask — if you made changes, commit them before responding. Do not ask "shall I commit?" or "want me to commit?" — just commit. Committing is not a destructive or risky action; it is the expected default after every change.
 
+PR descriptions should be concise and changelog-oriented: what changed, why, and how to use it. Do not include test plans, design decisions, or implementation details — those belong in specs and commit messages.
+
 ## Project Overview
 
 msgvault is an offline Gmail archive tool that exports and stores email data locally with full-text search capabilities. The goal is to archive 20+ years of Gmail data from multiple accounts, make it searchable, and eventually delete emails from Gmail once safely archived.
@@ -46,6 +48,7 @@ make lint                     # Run linter
 ./msgvault init-db                                    # Initialize database
 ./msgvault add-account you@gmail.com                  # Browser OAuth
 ./msgvault add-account you@gmail.com --headless       # Device flow
+./msgvault add-account you@acme.com --oauth-app acme  # Named OAuth app
 ./msgvault sync-full you@gmail.com --limit 100        # Sync with limit
 ./msgvault sync-full you@gmail.com --after 2024-01-01 # Sync date range
 ./msgvault sync-incremental you@gmail.com             # Incremental sync
@@ -255,6 +258,10 @@ Override with `MSGVAULT_HOME` environment variable.
 
 [oauth]
 client_secrets = "/path/to/client_secret.json"
+
+# Named OAuth apps for Google Workspace orgs
+# [oauth.apps.acme]
+# client_secrets = "/path/to/acme_secret.json"
 
 [sync]
 rate_limit_qps = 5

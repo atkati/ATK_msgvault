@@ -112,10 +112,15 @@ func (m *Manager) HasToken(email string) bool {
 // Google's device flow does not support Gmail scopes, so users must authorize
 // on a machine with a browser and copy the token file.
 // tokensDir should be the configured tokens directory (e.g., cfg.TokensDir()).
-func PrintHeadlessInstructions(email, tokensDir string) {
+func PrintHeadlessInstructions(email, tokensDir, oauthApp string) {
 	// Use same sanitization as tokenPath for consistency
 	tokenFile := sanitizeEmail(email) + ".json"
 	tokenPath := filepath.Join(tokensDir, tokenFile)
+
+	addCmd := fmt.Sprintf("    msgvault add-account %s", email)
+	if oauthApp != "" {
+		addCmd += fmt.Sprintf(" --oauth-app %s", oauthApp)
+	}
 
 	fmt.Println()
 	fmt.Println("=== Headless Server Setup ===")
@@ -126,7 +131,7 @@ func PrintHeadlessInstructions(email, tokensDir string) {
 	fmt.Println()
 	fmt.Println("Step 1: On a machine with a browser, run:")
 	fmt.Println()
-	fmt.Printf("    msgvault add-account %s\n", email)
+	fmt.Println(addCmd)
 	fmt.Println()
 	fmt.Println("Step 2: Copy the token file to your headless server:")
 	fmt.Println()
@@ -135,7 +140,7 @@ func PrintHeadlessInstructions(email, tokensDir string) {
 	fmt.Println()
 	fmt.Println("Step 3: On the headless server, register the account:")
 	fmt.Println()
-	fmt.Printf("    msgvault add-account %s\n", email)
+	fmt.Println(addCmd)
 	fmt.Println()
 	fmt.Println("The token will be detected and the account registered. No browser needed.")
 	fmt.Println("All msgvault commands (sync, tui, etc.) will work normally.")
@@ -226,6 +231,12 @@ func (m *Manager) newCallbackHandler(expectedState string, codeChan chan<- strin
 func (m *Manager) browserFlow(
 	ctx context.Context, email string, launchBrowser bool,
 ) (*oauth2.Token, error) {
+	// Bail early if context is already cancelled — no point starting
+	// a server or opening a browser.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// Generate random state for CSRF protection
 	stateBytes := make([]byte, 16)
 	if _, err := rand.Read(stateBytes); err != nil {
@@ -393,12 +404,15 @@ func normalizeGmailAddress(email string) string {
 	return local + "@gmail.com"
 }
 
-// tokenFile wraps an OAuth2 token with metadata about the scopes it was
-// authorized with. This enables proactive scope checking (e.g., detecting
-// that deletion requires re-authorization) without making an API call first.
+// tokenFile wraps an OAuth2 token with metadata about the scopes and
+// client it was authorized with. This enables proactive scope checking
+// (e.g., detecting that deletion requires re-authorization) and client
+// identity verification (detecting that an OAuth app switch requires
+// re-authorization) without making an API call first.
 type tokenFile struct {
 	oauth2.Token
-	Scopes []string `json:"scopes,omitempty"`
+	Scopes   []string `json:"scopes,omitempty"`
+	ClientID string   `json:"client_id,omitempty"`
 }
 
 // loadToken loads a saved token for the given email.
@@ -431,6 +445,21 @@ func (m *Manager) loadTokenFile(email string) (*tokenFile, error) {
 	}
 
 	return &tf, nil
+}
+
+// TokenMatchesClient returns true if the stored token for the given email
+// was minted by this manager's OAuth client. Returns false if the token
+// doesn't exist, has no client_id metadata (legacy token), or was minted
+// by a different client.
+func (m *Manager) TokenMatchesClient(email string) bool {
+	tf, err := m.loadTokenFile(email)
+	if err != nil {
+		return false
+	}
+	if tf.ClientID == "" {
+		return false // legacy token without client_id metadata
+	}
+	return tf.ClientID == m.config.ClientID
 }
 
 // HasScopeMetadata returns true if the token file for this account has any
@@ -466,8 +495,9 @@ func (m *Manager) saveToken(email string, token *oauth2.Token, scopes []string) 
 	}
 
 	tf := tokenFile{
-		Token:  *token,
-		Scopes: scopes,
+		Token:    *token,
+		Scopes:   scopes,
+		ClientID: m.config.ClientID,
 	}
 
 	data, err := json.MarshalIndent(tf, "", "  ")

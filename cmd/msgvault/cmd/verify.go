@@ -41,11 +41,6 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		email := args[0]
 
-		// Validate config
-		if cfg.OAuth.ClientSecrets == "" {
-			return errOAuthNotConfigured()
-		}
-
 		// Open database
 		dbPath := cfg.DatabaseDSN()
 		s, err := store.Open(dbPath)
@@ -54,8 +49,31 @@ Examples:
 		}
 		defer s.Close()
 
+		if err := s.InitSchema(); err != nil {
+			return fmt.Errorf("init schema: %w", err)
+		}
+
+		// Look up source to get OAuth app binding
+		appName := ""
+		src, srcErr := findGmailSource(s, email)
+		if srcErr != nil {
+			return fmt.Errorf("look up source for %s: %w", email, srcErr)
+		}
+		if src != nil {
+			appName = sourceOAuthApp(src)
+		}
+
+		// Resolve OAuth credentials
+		clientSecretsPath, err := cfg.OAuth.ClientSecretsFor(appName)
+		if err != nil {
+			if !cfg.OAuth.HasAnyConfig() {
+				return errOAuthNotConfigured()
+			}
+			return err
+		}
+
 		// Create OAuth manager and get token source
-		oauthMgr, err := oauth.NewManager(cfg.OAuth.ClientSecrets, cfg.TokensDir(), logger)
+		oauthMgr, err := oauth.NewManager(clientSecretsPath, cfg.TokensDir(), logger)
 		if err != nil {
 			return wrapOAuthError(fmt.Errorf("create oauth manager: %w", err))
 		}

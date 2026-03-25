@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -13,6 +14,7 @@ var (
 	headless           bool
 	accountDisplayName string
 	forceReauth        bool
+	oauthAppName       string
 )
 
 var addAccountCmd = &cobra.Command{
@@ -24,33 +26,48 @@ By default, opens a browser for authorization. Use --headless to see instruction
 for authorizing on headless servers (Google does not support Gmail in device flow).
 
 If a token already exists, the command skips authorization. Use --force to delete
-the existing token and start a fresh OAuth flow (most token issues are handled
-automatically during sync and verify).
+the existing token and start a fresh OAuth flow.
+
+For Google Workspace orgs that require their own OAuth app, use --oauth-app to
+specify a named app from config.toml.
 
 Examples:
   msgvault add-account you@gmail.com
   msgvault add-account you@gmail.com --headless
   msgvault add-account you@gmail.com --force
+  msgvault add-account you@acme.com --oauth-app acme
   msgvault add-account you@gmail.com --display-name "Work Account"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		email := args[0]
 
-		// Reject incompatible flag combination
 		if headless && forceReauth {
 			return fmt.Errorf("--headless and --force cannot be used together: --force requires browser-based OAuth which is not available in headless mode")
 		}
 
-		// For --headless, just show instructions (no OAuth config needed)
+		// For --headless, try to inherit the stored binding so the
+		// printed instructions include --oauth-app. DB errors are
+		// non-fatal since headless only prints instructions.
 		if headless {
-			oauth.PrintHeadlessInstructions(email, cfg.TokensDir())
+			app := oauthAppName
+			if !cmd.Flags().Changed("oauth-app") {
+				if s, openErr := store.Open(cfg.DatabaseDSN()); openErr == nil {
+					defer func() { _ = s.Close() }()
+					if initErr := s.InitSchema(); initErr == nil {
+						if src, _ := findGmailSource(s, email); src != nil {
+							app = sourceOAuthApp(src)
+						}
+					}
+				}
+			}
+			oauth.PrintHeadlessInstructions(email, cfg.TokensDir(), app)
 			return nil
 		}
 
-		// Validate config
-		if cfg.OAuth.ClientSecrets == "" {
-			return errOAuthNotConfigured()
-		}
+		// Resolve which client secrets to use
+		resolvedApp := oauthAppName
+		oauthAppExplicit := cmd.Flags().Changed("oauth-app")
+		var clientSecretsPath string
 
 		// Initialize database (in case it's new)
 		dbPath := cfg.DatabaseDSN()
@@ -64,8 +81,43 @@ Examples:
 			return fmt.Errorf("init schema: %w", err)
 		}
 
+		// Look up existing source to detect binding changes
+		existingSource, err := findGmailSource(s, email)
+		if err != nil {
+			return fmt.Errorf("look up existing source: %w", err)
+		}
+
+		// Inherit stored binding when --oauth-app is not specified.
+		// This ensures re-running add-account on a named-app account
+		// (e.g., after token loss) uses the correct credentials.
+		if !oauthAppExplicit && existingSource != nil && existingSource.OAuthApp.Valid {
+			resolvedApp = existingSource.OAuthApp.String
+		}
+
+		// Detect binding change: --oauth-app was explicitly set and
+		// differs from the stored value (including clearing to default).
+		bindingChanged := false
+		if oauthAppExplicit && existingSource != nil {
+			currentApp := ""
+			if existingSource.OAuthApp.Valid {
+				currentApp = existingSource.OAuthApp.String
+			}
+			if currentApp != oauthAppName {
+				bindingChanged = true
+			}
+		}
+
+		// Resolve client secrets path
+		clientSecretsPath, err = cfg.OAuth.ClientSecretsFor(resolvedApp)
+		if err != nil {
+			if !cfg.OAuth.HasAnyConfig() {
+				return errOAuthNotConfigured()
+			}
+			return err
+		}
+
 		// Create OAuth manager
-		oauthMgr, err := oauth.NewManager(cfg.OAuth.ClientSecrets, cfg.TokensDir(), logger)
+		oauthMgr, err := oauth.NewManager(clientSecretsPath, cfg.TokensDir(), logger)
 		if err != nil {
 			return wrapOAuthError(fmt.Errorf("create oauth manager: %w", err))
 		}
@@ -82,45 +134,58 @@ Examples:
 			}
 		}
 
-		// Check if already authorized (e.g., token copied from another machine)
-		if oauthMgr.HasToken(email) {
-			// Still create the source record - needed for headless setup
-			// where token was copied but account not yet registered
+		// If a valid token exists, check if we can reuse it.
+		// Validate the token's client identity when any named app is
+		// involved — whether from an explicit flag, a binding change,
+		// or inherited from the DB. A mismatched token would fail on
+		// next refresh.
+		needsClientCheck := bindingChanged || oauthAppExplicit ||
+			resolvedApp != ""
+		tokenReusable := !forceReauth && oauthMgr.HasToken(email) &&
+			(!needsClientCheck || oauthMgr.TokenMatchesClient(email))
+		if tokenReusable {
 			source, err := s.GetOrCreateSource("gmail", email)
 			if err != nil {
 				return fmt.Errorf("create source: %w", err)
+			}
+			// Update oauth_app binding if it changed or was newly specified
+			if bindingChanged || (resolvedApp != "" && !source.OAuthApp.Valid) {
+				newApp := sql.NullString{String: resolvedApp, Valid: resolvedApp != ""}
+				if err := s.UpdateSourceOAuthApp(source.ID, newApp); err != nil {
+					return fmt.Errorf("update oauth app binding: %w", err)
+				}
 			}
 			if accountDisplayName != "" {
 				if err := s.UpdateSourceDisplayName(source.ID, accountDisplayName); err != nil {
 					return fmt.Errorf("set display name: %w", err)
 				}
 			}
-			fmt.Printf("Account %s is already authorized.\n", email)
+			if bindingChanged {
+				fmt.Printf("Account %s: OAuth app binding updated to %q.\n", email, resolvedApp)
+			} else {
+				fmt.Printf("Account %s is already authorized.\n", email)
+			}
 			fmt.Println("Next step: msgvault sync-full", email)
 			return nil
 		}
 
 		// Perform authorization
-		fmt.Println("Starting browser authorization...")
+		if bindingChanged {
+			fmt.Printf("Switching OAuth app for %s to %q. Authorizing...\n", email, oauthAppName)
+		} else {
+			fmt.Println("Starting browser authorization...")
+		}
 
 		if err := oauthMgr.Authorize(cmd.Context(), email); err != nil {
 			var mismatch *oauth.TokenMismatchError
 			if errors.As(err, &mismatch) {
-				// Only suggest add-account with the primary
-				// address when no Gmail source exists yet. If one
-				// already exists (--force re-auth, or token was
-				// manually deleted), the suggestion would create
-				// a duplicate and orphan the existing source.
 				existing, lookupErr := findGmailSource(s, email)
 				if lookupErr != nil {
-					return fmt.Errorf(
-						"authorization failed: %w (also: %v)",
-						err, lookupErr)
+					return fmt.Errorf("authorization failed: %w (also: %v)", err, lookupErr)
 				}
 				if existing == nil {
 					return fmt.Errorf(
-						"%w\nIf %s is the primary address, "+
-							"re-add with:\n"+
+						"%w\nIf %s is the primary address, re-add with:\n"+
 							"  msgvault add-account %s",
 						err, mismatch.Actual, mismatch.Actual,
 					)
@@ -129,13 +194,25 @@ Examples:
 			return fmt.Errorf("authorization failed: %w", err)
 		}
 
-		// Create source record in database
+		// Authorization succeeded — now persist the binding and source.
 		source, err := s.GetOrCreateSource("gmail", email)
 		if err != nil {
 			return fmt.Errorf("create source: %w", err)
 		}
 
-		// Set display name if provided
+		// Update oauth_app binding (set or clear)
+		if resolvedApp != "" {
+			newApp := sql.NullString{String: resolvedApp, Valid: true}
+			if err := s.UpdateSourceOAuthApp(source.ID, newApp); err != nil {
+				return fmt.Errorf("update oauth app binding: %w", err)
+			}
+		} else if bindingChanged {
+			// Clearing the binding (switching back to default)
+			if err := s.UpdateSourceOAuthApp(source.ID, sql.NullString{}); err != nil {
+				return fmt.Errorf("clear oauth app binding: %w", err)
+			}
+		}
+
 		if accountDisplayName != "" {
 			if err := s.UpdateSourceDisplayName(source.ID, accountDisplayName); err != nil {
 				return fmt.Errorf("set display name: %w", err)
@@ -168,5 +245,6 @@ func init() {
 	addAccountCmd.Flags().BoolVar(&headless, "headless", false, "Show instructions for headless server setup")
 	addAccountCmd.Flags().BoolVar(&forceReauth, "force", false, "Delete existing token and re-authorize")
 	addAccountCmd.Flags().StringVar(&accountDisplayName, "display-name", "", "Display name for the account (e.g., \"Work\", \"Personal\")")
+	addAccountCmd.Flags().StringVar(&oauthAppName, "oauth-app", "", "Named OAuth app from config (for Google Workspace orgs)")
 	rootCmd.AddCommand(addAccountCmd)
 }

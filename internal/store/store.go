@@ -259,6 +259,7 @@ func (s *Store) InitSchema() error {
 	}{
 		{`ALTER TABLE sources ADD COLUMN sync_config JSON`, "sync_config"},
 		{`ALTER TABLE messages ADD COLUMN rfc822_message_id TEXT`, "rfc822_message_id"},
+		{`ALTER TABLE sources ADD COLUMN oauth_app TEXT`, "oauth_app"},
 	} {
 		if _, err := s.db.Exec(m.sql); err != nil {
 			if !isSQLiteError(err, "duplicate column name") {

@@ -1357,6 +1357,59 @@ func TestStore_PersistMessage_Atomicity(t *testing.T) {
 	}
 }
 
+func TestStore_OAuthAppColumn(t *testing.T) {
+	f := storetest.New(t)
+
+	// Default source should have null oauth_app
+	if f.Source.OAuthApp.Valid {
+		t.Errorf("new source OAuthApp should be null, got %q", f.Source.OAuthApp.String)
+	}
+
+	// Update oauth_app
+	err := f.Store.UpdateSourceOAuthApp(f.Source.ID, sql.NullString{String: "acme", Valid: true})
+	testutil.MustNoErr(t, err, "UpdateSourceOAuthApp")
+
+	// Read it back via ListSources
+	sources, err := f.Store.ListSources("")
+	testutil.MustNoErr(t, err, "ListSources")
+
+	found := false
+	for _, src := range sources {
+		if src.ID == f.Source.ID {
+			found = true
+			if !src.OAuthApp.Valid || src.OAuthApp.String != "acme" {
+				t.Errorf("OAuthApp = %v, want {acme, true}", src.OAuthApp)
+			}
+		}
+	}
+	if !found {
+		t.Error("source not found in ListSources")
+	}
+}
+
+func TestStore_OAuthAppColumn_NullRoundTrip(t *testing.T) {
+	f := storetest.New(t)
+
+	// Set to acme
+	err := f.Store.UpdateSourceOAuthApp(f.Source.ID, sql.NullString{String: "acme", Valid: true})
+	testutil.MustNoErr(t, err, "UpdateSourceOAuthApp(acme)")
+
+	// Set back to null
+	err = f.Store.UpdateSourceOAuthApp(f.Source.ID, sql.NullString{})
+	testutil.MustNoErr(t, err, "UpdateSourceOAuthApp(null)")
+
+	// Verify via GetSourcesByIdentifier
+	sources, err := f.Store.GetSourcesByIdentifier(f.Source.Identifier)
+	testutil.MustNoErr(t, err, "GetSourcesByIdentifier")
+
+	if len(sources) == 0 {
+		t.Fatal("no sources found")
+	}
+	if sources[0].OAuthApp.Valid {
+		t.Errorf("OAuthApp should be null after clearing, got %q", sources[0].OAuthApp.String)
+	}
+}
+
 func TestStore_PersistMessage_Upsert(t *testing.T) {
 	f := storetest.New(t)
 

@@ -60,7 +60,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate config
-	if cfg.OAuth.ClientSecrets == "" {
+	if !cfg.OAuth.HasAnyConfig() {
 		return errOAuthNotConfigured()
 	}
 
@@ -111,15 +111,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 	defer engine.Close()
 
-	// Create OAuth manager
-	oauthMgr, err := oauth.NewManager(cfg.OAuth.ClientSecrets, cfg.TokensDir(), logger)
-	if err != nil {
-		return wrapOAuthError(fmt.Errorf("create oauth manager: %w", err))
-	}
+	getOAuthMgr := oauthManagerCache()
 
 	// Create sync function for the scheduler
 	syncFunc := func(ctx context.Context, email string) error {
-		return runScheduledSync(ctx, email, s, oauthMgr)
+		return runScheduledSync(ctx, email, s, getOAuthMgr)
 	}
 
 	// Create and configure scheduler
@@ -270,9 +266,25 @@ func (a *schedulerAdapter) Status() []api.AccountStatus {
 }
 
 // runScheduledSync performs an incremental sync for a scheduled account.
-func runScheduledSync(ctx context.Context, email string, s *store.Store, oauthMgr *oauth.Manager) error {
+func runScheduledSync(ctx context.Context, email string, s *store.Store, getOAuthMgr func(string) (*oauth.Manager, error)) error {
 	logger.Info("starting scheduled sync", "email", email)
 	startTime := time.Now()
+
+	// Look up source to get OAuth app binding. Fall back to default
+	// if no source row exists (token-first workflow).
+	appName := ""
+	src, srcErr := findGmailSource(s, email)
+	if srcErr != nil {
+		return fmt.Errorf("look up source for %s: %w", email, srcErr)
+	}
+	if src != nil {
+		appName = sourceOAuthApp(src)
+	}
+
+	oauthMgr, err := getOAuthMgr(appName)
+	if err != nil {
+		return fmt.Errorf("resolve OAuth credentials for %s: %w", email, err)
+	}
 
 	// Get token source — intentionally not using getTokenSourceWithReauth here
 	// because serve runs as a daemon and cannot open a browser for OAuth.
