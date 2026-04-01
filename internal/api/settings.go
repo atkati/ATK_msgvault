@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"time"
 )
 
@@ -175,11 +176,6 @@ func (s *Server) handleListOllamaModels(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleTriggerSyncWeb(w http.ResponseWriter, r *http.Request) {
-	if s.taskManager == nil {
-		writeError(w, http.StatusServiceUnavailable, "no_task_manager", "Task manager not available")
-		return
-	}
-
 	var req struct {
 		Account string `json:"account"`
 	}
@@ -191,28 +187,29 @@ func (s *Server) handleTriggerSyncWeb(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the existing scheduler sync trigger if available.
-	if s.scheduler != nil {
-		// If the account is not scheduled, add it first.
-		if !s.scheduler.IsScheduled(req.Account) {
-			if err := s.scheduler.AddAccount(req.Account, ""); err != nil {
-				// Not fatal — try TriggerSync anyway.
-				_ = err
-			}
-		}
-
-		if err := s.scheduler.TriggerSync(req.Account); err != nil {
-			writeError(w, http.StatusInternalServerError, "sync_error",
-				fmt.Sprintf("Erreur sync : %s. Assurez-vous que le compte est autorise (msgvault add-account %s)", err.Error(), req.Account))
-			return
-		}
-		writeJSON(w, http.StatusAccepted, map[string]string{
-			"status":  "started",
-			"account": req.Account,
-			"message": fmt.Sprintf("Sync lancee pour %s", req.Account),
-		})
+	// Launch sync as a subprocess using the same binary.
+	// This reuses the full sync logic (OAuth tokens, checkpoints, etc.)
+	// without coupling to the scheduler.
+	exe, err := os.Executable()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "exec_error", "Cannot find executable")
 		return
 	}
 
-	writeError(w, http.StatusServiceUnavailable, "no_scheduler", "Scheduler non disponible")
+	cmd := exec.Command(exe, "sync", req.Account)
+	cmd.Dir = s.cfg.HomeDir
+	if err := cmd.Start(); err != nil {
+		writeError(w, http.StatusInternalServerError, "sync_error",
+			fmt.Sprintf("Erreur lancement sync : %s", err.Error()))
+		return
+	}
+
+	// Don't wait for the process — it runs in the background.
+	go cmd.Wait()
+
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"status":  "started",
+		"account": req.Account,
+		"message": fmt.Sprintf("Sync incrémentale lancée pour %s (PID %d)", req.Account, cmd.Process.Pid),
+	})
 }
