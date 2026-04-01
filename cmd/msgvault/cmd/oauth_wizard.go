@@ -381,8 +381,7 @@ func openBrowserWizard(url string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		// start needs an empty title (first quoted arg) before the URL.
-		cmd = exec.Command("cmd", "/c", "start", "", url)
+		cmd = exec.Command("explorer", url)
 	case "darwin":
 		cmd = exec.Command("open", url)
 	default:

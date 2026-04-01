@@ -636,7 +636,7 @@ func openBrowser(rawURL string) error {
 	case "linux":
 		cmd = exec.Command("xdg-open", rawURL)
 	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", "", rawURL)
+		cmd = exec.Command("explorer", rawURL)
 	default:
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
