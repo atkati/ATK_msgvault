@@ -363,3 +363,37 @@ CREATE INDEX IF NOT EXISTS idx_message_labels_label ON message_labels(label_id);
 
 -- Sync
 CREATE INDEX IF NOT EXISTS idx_sync_runs_source ON sync_runs(source_id, started_at DESC);
+
+-- ============================================================================
+-- AI TABLES
+-- ============================================================================
+
+-- AI-generated message categories
+CREATE TABLE IF NOT EXISTS ai_categories (
+    message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+    category TEXT NOT NULL,
+    subcategory TEXT,
+    confidence REAL,
+    provider TEXT NOT NULL,    -- 'ollama', 'anthropic', 'openai'
+    model TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_categories_cat ON ai_categories(category);
+
+-- AI-extracted named entities
+CREATE TABLE IF NOT EXISTS ai_entities (
+    id INTEGER PRIMARY KEY,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    entity_type TEXT NOT NULL,  -- 'montant', 'iban', 'date', 'telephone', 'personne', 'entreprise', 'contrat', 'adresse'
+    value TEXT NOT NULL,
+    context TEXT,              -- surrounding text for disambiguation
+    confidence REAL,
+    provider TEXT NOT NULL,
+    model TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_entities_message ON ai_entities(message_id);
+CREATE INDEX IF NOT EXISTS idx_ai_entities_type ON ai_entities(entity_type);
+CREATE INDEX IF NOT EXISTS idx_ai_entities_value ON ai_entities(entity_type, value);
