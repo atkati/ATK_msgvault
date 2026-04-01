@@ -82,6 +82,7 @@ make lint                     # Run linter
 
 # Daemon mode (NAS/server deployment)
 ./msgvault serve                                      # Start HTTP API + scheduled syncs
+# Web UI available at http://localhost:8080/web/      # Embedded, zero dependencies
 
 # Maintenance
 ./msgvault repair-encoding                            # Fix UTF-8 encoding issues
@@ -119,6 +120,7 @@ make lint                     # Run linter
 - `ai/router.go` - Feature-based AI provider routing with fallback
 - `importer/eml_import.go` - EML file import (recursive scan, ZIP, labels from paths)
 - `store/tags.go` - User tags system (independent of Gmail labels)
+- `web/handler.go` - Embedded web UI handler (HTML/CSS/JS via embed.FS)
 
 ### TUI Keybindings
 - `j/k` or `↑/↓` - Navigate rows

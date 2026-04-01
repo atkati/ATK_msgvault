@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>msgvault</title>
+    <link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>msgvault</h1>
+            <span class="subtitle">Archive email locale</span>
+        </div>
+        <div class="header-right">
+            <div id="stats-bar"></div>
+            <button id="theme-toggle" title="Changer le theme" aria-label="Changer le theme">&#9681;</button>
+        </div>
+    </header>
+
+    <nav>
+        <div class="nav-tabs">
+            <button class="tab active" data-view="messages">Messages</button>
+            <button class="tab" data-view="search">Recherche</button>
+            <button class="tab" data-view="labels">Labels</button>
+            <button class="tab" data-view="stats">Statistiques</button>
+        </div>
+        <div class="nav-filters">
+            <select id="account-filter">
+                <option value="">Tous les comptes</option>
+            </select>
+            <select id="label-filter">
+                <option value="">Tous les labels</option>
+            </select>
+        </div>
+    </nav>
+
+    <main>
+        <!-- Messages view -->
+        <section id="view-messages" class="view active">
+            <div id="message-list" class="message-list"></div>
+            <div id="pagination" class="pagination"></div>
+        </section>
+
+        <!-- Search view -->
+        <section id="view-search" class="view">
+            <div class="search-bar">
+                <input type="text" id="search-input" placeholder="Rechercher... (from:, to:, subject:, label:, has:attachment)" autocomplete="off">
+                <button id="search-btn">Rechercher</button>
+            </div>
+            <div class="search-hint">Recherche accent-insensitive : "resume" trouve aussi "resume"</div>
+            <div id="search-results" class="message-list"></div>
+            <div id="search-pagination" class="pagination"></div>
+        </section>
+
+        <!-- Labels view -->
+        <section id="view-labels" class="view">
+            <div id="labels-list" class="labels-grid"></div>
+        </section>
+
+        <!-- Stats view -->
+        <section id="view-stats" class="view">
+            <div id="stats-detail" class="stats-grid"></div>
+        </section>
+
+        <!-- Message detail (overlay) -->
+        <div id="message-detail" class="detail-panel hidden">
+            <div class="detail-header">
+                <button id="detail-close" class="close-btn">&larr; Retour</button>
+                <h2 id="detail-subject"></h2>
+            </div>
+            <div class="detail-meta">
+                <div><strong>De :</strong> <span id="detail-from"></span></div>
+                <div><strong>A :</strong> <span id="detail-to"></span></div>
+                <div><strong>Date :</strong> <span id="detail-date"></span></div>
+                <div><strong>Labels :</strong> <span id="detail-labels"></span></div>
+            </div>
+            <div id="detail-attachments" class="detail-attachments"></div>
+            <div id="detail-body" class="detail-body"></div>
+        </div>
+    </main>
+
+    <script src="/web/app.js"></script>
+</body>
+</html>

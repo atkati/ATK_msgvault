@@ -17,6 +17,7 @@ import (
 	"github.com/wesm/msgvault/internal/query"
 	"github.com/wesm/msgvault/internal/scheduler"
 	"github.com/wesm/msgvault/internal/store"
+	"github.com/wesm/msgvault/internal/web"
 )
 
 // MessageStore defines the store operations the API needs.
@@ -117,6 +118,9 @@ func (s *Server) setupRouter() chi.Router {
 	// Health check (no auth required)
 	r.Get("/health", s.handleHealth)
 	r.Head("/health", s.handleHealth)
+
+	// Web UI (no auth required — served only on localhost)
+	r.Mount("/web", web.Handler())
 
 	// API routes (auth required)
 	r.Route("/api/v1", func(r chi.Router) {
