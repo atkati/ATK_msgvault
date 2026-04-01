@@ -82,6 +82,10 @@ make lint                     # Run linter
 ./msgvault ai summarize --thread 5479                     # Summarize a thread
 ./msgvault ai summarize --message 42                      # Summarize a message
 ./msgvault ai summarize --all-threads --min-messages 5    # Batch summarize
+./msgvault ai chat                                        # Interactive Q&A on your archive
+./msgvault ai audit                                       # Detect anomalies (duplicates, spoofing)
+./msgvault audit-sensitive                                # Scan for IBAN, passwords, card numbers
+./msgvault audit-sensitive --tag                          # Auto-tag sensitive messages
 
 # Export and purge
 ./msgvault export-report --domain uber.com              # CSV report for a domain
