@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/wesm/msgvault/internal/fileutil"
@@ -75,6 +76,7 @@ type Config struct {
 	Sync     SyncConfig        `toml:"sync"`
 	Chat     ChatConfig        `toml:"chat"`
 	AI       AIConfig          `toml:"ai"`
+	Display  DisplayConfig     `toml:"display"`
 	Server   ServerConfig      `toml:"server"`
 	Remote   RemoteConfig      `toml:"remote"`
 	Accounts []AccountSchedule `toml:"accounts"`
@@ -142,6 +144,20 @@ type SyncConfig struct {
 	RateLimitQPS int `toml:"rate_limit_qps"`
 }
 
+// DisplayConfig holds display/locale configuration.
+type DisplayConfig struct {
+	Locale     string `toml:"locale"`      // "fr", "en", etc.
+	DateFormat string `toml:"date_format"` // Go date format string
+}
+
+// FormatDate formats a time using the configured date format.
+func (d DisplayConfig) FormatDate(t time.Time) string {
+	if d.DateFormat == "" {
+		return t.Format("2006-01-02 15:04")
+	}
+	return t.Format(d.DateFormat)
+}
+
 // AIConfig holds AI provider configuration.
 type AIConfig struct {
 	DefaultProvider string            `toml:"default_provider"` // "off", "local", "cloud"
@@ -193,6 +209,10 @@ func NewDefaultConfig() *Config {
 			Server:     "http://localhost:11434",
 			Model:      "gpt-oss-128k",
 			MaxResults: 20,
+		},
+		Display: DisplayConfig{
+			Locale:     "fr",
+			DateFormat: "02/01/2006 15:04",
 		},
 		AI: AIConfig{
 			DefaultProvider: "off",

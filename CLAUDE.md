@@ -67,6 +67,13 @@ make lint                     # Run linter
 ./msgvault import-emlx --account me@gmail.com         # Specific account(s)
 ./msgvault import-emlx /path/to/dir --identifier me@gmail.com  # Manual fallback
 
+# User tags
+./msgvault tag add 42 "SENSIBLE" --color "#ff0000"    # Add tag to message
+./msgvault tag remove 42 "SENSIBLE"                   # Remove tag from message
+./msgvault tag list                                   # List all user tags
+./msgvault tag search "SENSIBLE"                      # Find messages with tag
+./msgvault tag delete "OldTag"                        # Delete tag entirely
+
 # EML file import (Google Takeout, etc.)
 ./msgvault import-eml you@gmail.com /path/to/Mail/    # Recursive directory scan
 ./msgvault import-eml you@gmail.com /path/to/export.zip  # ZIP archive
@@ -111,6 +118,7 @@ make lint                     # Run linter
 - `ai/cloud.go` - Anthropic & OpenAI-compatible API implementation
 - `ai/router.go` - Feature-based AI provider routing with fallback
 - `importer/eml_import.go` - EML file import (recursive scan, ZIP, labels from paths)
+- `store/tags.go` - User tags system (independent of Gmail labels)
 
 ### TUI Keybindings
 - `j/k` or `↑/↓` - Navigate rows
