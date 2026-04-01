@@ -125,6 +125,24 @@ msgvault audit-sensitive
 msgvault audit-sensitive --tag    # auto-tag "SENSIBLE"
 ```
 
+### Interface web
+
+Interface web complete embarquee dans le binaire (zero dependance).
+
+```bash
+msgvault serve    # ouvrir http://localhost:8080/
+```
+
+- **Tableau de bord** : statistiques, messages recents
+- **Navigation** : sidebar avec labels et expediteurs cliquables
+- **Recherche** : texte libre, filtres par label/expediteur/domaine
+- **Visualisation** : rendu HTML des emails, pieces jointes
+- **Actions IA** : lancer categorisation, NER, indexation, audits depuis le navigateur
+- **Parametres** : choix du modele Ollama, provider, endpoint — tout configurable
+- **Sync Gmail** : bouton Synchroniser avec suivi de progression
+- **Auto-process** : apres chaque sync, categorisation + NER + indexation automatiques
+- **Controle** : barres de progression temps reel, bouton Arreter pour chaque tache
+
 ### OAuth Wizard
 
 Assistant interactif pour configurer Google OAuth.
@@ -188,12 +206,32 @@ Binaire unique Go. Pas de dependance externe (sauf Ollama pour l'IA locale).
 ```
 internal/
 ├── ai/          # Interface AIProvider + implementations Ollama/Cloud
+├── api/         # Serveur HTTP REST (chi), TaskManager, parametres
 ├── importer/    # Import EML, MBOX, Apple Mail
 ├── store/       # SQLite (messages, tags, categories, entites, embeddings)
 ├── web/         # Interface web embarquee (HTML/CSS/JS via embed.FS)
 ├── query/       # DuckDB/Parquet analytics
 └── ...          # OAuth, sync, TUI, MCP, etc.
 ```
+
+## API REST
+
+En plus de l'API upstream (messages, search, aggregates), le fork ajoute :
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/settings` | Lire la configuration |
+| `PUT /api/v1/settings` | Modifier la config IA (provider, modele) |
+| `GET /api/v1/ollama/models` | Lister les modeles Ollama disponibles |
+| `POST /api/v1/sync-web` | Lancer une sync Gmail |
+| `GET /api/v1/tasks` | Lister les taches en cours |
+| `GET /api/v1/tasks/{id}` | Statut d'une tache |
+| `POST /api/v1/tasks/{type}` | Lancer une tache IA |
+| `DELETE /api/v1/tasks/{id}` | Arreter une tache en cours |
+
+Types de taches : `categorize`, `extract-entities`, `index`, `audit`, `audit-sensitive`
+
+Voir [docs/api.md](docs/api.md) pour l'API complete.
 
 ## Configuration locale FR
 
