@@ -46,6 +46,7 @@ make lint                     # Run linter
 
 # CLI usage
 ./msgvault init-db                                    # Initialize database
+./msgvault oauth-wizard you@gmail.com                  # Guided OAuth setup (opens browser, auto-detects download)
 ./msgvault add-account you@gmail.com                  # Browser OAuth
 ./msgvault add-account you@gmail.com --headless       # Device flow
 ./msgvault add-account you@acme.com --oauth-app acme  # Named OAuth app
