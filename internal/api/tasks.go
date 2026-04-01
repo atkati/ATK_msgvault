@@ -164,9 +164,20 @@ func (tm *TaskManager) handleStartCategorize(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	limit := 500
+	limit := 10000
 	if v := r.URL.Query().Get("limit"); v != "" {
 		fmt.Sscanf(v, "%d", &limit)
+	}
+
+	// Count real work before launching.
+	ids, err := tm.store.ListUncategorizedMessageIDs(limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "count_error", err.Error())
+		return
+	}
+	if len(ids) == 0 {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "nothing_to_do", "message": "Tous les messages sont deja categorises"})
+		return
 	}
 
 	provider, err := tm.resolveProvider()
@@ -179,8 +190,8 @@ func (tm *TaskManager) handleStartCategorize(w http.ResponseWriter, r *http.Requ
 		ID:        fmt.Sprintf("cat-%d", time.Now().Unix()),
 		Type:      "categorize",
 		Status:    "running",
-		Total:     limit,
-		Message:   "Demarrage...",
+		Total:     len(ids),
+		Message:   fmt.Sprintf("0/%d", len(ids)),
 		StartedAt: time.Now().Format(time.RFC3339),
 	}
 	tm.setTask(task)
@@ -198,9 +209,19 @@ func (tm *TaskManager) handleStartExtractEntities(w http.ResponseWriter, r *http
 		return
 	}
 
-	limit := 200
+	limit := 10000
 	if v := r.URL.Query().Get("limit"); v != "" {
 		fmt.Sscanf(v, "%d", &limit)
+	}
+
+	ids, err := listMsgsWithoutEntities(tm.store, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "count_error", err.Error())
+		return
+	}
+	if len(ids) == 0 {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "nothing_to_do", "message": "Toutes les entites sont deja extraites"})
+		return
 	}
 
 	provider, err := tm.resolveProvider()
@@ -213,8 +234,8 @@ func (tm *TaskManager) handleStartExtractEntities(w http.ResponseWriter, r *http
 		ID:        fmt.Sprintf("ner-%d", time.Now().Unix()),
 		Type:      "extract-entities",
 		Status:    "running",
-		Total:     limit,
-		Message:   "Demarrage...",
+		Total:     len(ids),
+		Message:   fmt.Sprintf("0/%d", len(ids)),
 		StartedAt: time.Now().Format(time.RFC3339),
 	}
 	tm.setTask(task)
@@ -232,9 +253,20 @@ func (tm *TaskManager) handleStartIndex(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	limit := 1000
+	limit := 10000
 	if v := r.URL.Query().Get("limit"); v != "" {
 		fmt.Sscanf(v, "%d", &limit)
+	}
+
+	ids, err := tm.store.ListMessageIDsWithoutEmbedding(limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "count_error", err.Error())
+		return
+	}
+	if len(ids) == 0 {
+		existing, _ := tm.store.CountEmbeddings()
+		writeJSON(w, http.StatusOK, map[string]string{"status": "nothing_to_do", "message": fmt.Sprintf("Tous les messages sont deja indexes (%d embeddings)", existing)})
+		return
 	}
 
 	provider, err := tm.resolveProvider()
@@ -247,8 +279,8 @@ func (tm *TaskManager) handleStartIndex(w http.ResponseWriter, r *http.Request) 
 		ID:        fmt.Sprintf("idx-%d", time.Now().Unix()),
 		Type:      "index",
 		Status:    "running",
-		Total:     limit,
-		Message:   "Demarrage...",
+		Total:     len(ids),
+		Message:   fmt.Sprintf("0/%d", len(ids)),
 		StartedAt: time.Now().Format(time.RFC3339),
 	}
 	tm.setTask(task)
@@ -286,22 +318,25 @@ func (tm *TaskManager) handleStartAuditSensitive(w http.ResponseWriter, r *http.
 		return
 	}
 
-	limit := 5000
-	if v := r.URL.Query().Get("limit"); v != "" {
-		fmt.Sscanf(v, "%d", &limit)
+	// Count messages with body text.
+	var totalBodies int
+	tm.store.DB().QueryRow("SELECT COUNT(*) FROM message_bodies").Scan(&totalBodies)
+	if totalBodies == 0 {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "nothing_to_do", "message": "Aucun message a scanner"})
+		return
 	}
 
 	task := &TaskStatus{
 		ID:        fmt.Sprintf("sens-%d", time.Now().Unix()),
 		Type:      "audit-sensitive",
 		Status:    "running",
-		Total:     limit,
-		Message:   "Scan...",
+		Total:     totalBodies,
+		Message:   fmt.Sprintf("0/%d", totalBodies),
 		StartedAt: time.Now().Format(time.RFC3339),
 	}
 	tm.setTask(task)
 
-	go tm.runAuditSensitive(task, limit)
+	go tm.runAuditSensitive(task, totalBodies)
 
 	writeJSON(w, http.StatusAccepted, task)
 }
