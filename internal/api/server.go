@@ -171,6 +171,10 @@ func (s *Server) setupRouter() chi.Router {
 		r.Get("/ollama/models", s.handleListOllamaModels)
 		r.Post("/sync-web", s.handleTriggerSyncWeb)
 
+		// Audit reports history
+		r.Get("/audit-reports", s.handleListAuditReports)
+		r.Get("/audit-reports/{id}", s.handleGetAuditReport)
+
 		// Background tasks (AI, audit, etc.)
 		if s.taskManager != nil {
 			s.taskManager.RegisterRoutes(r)

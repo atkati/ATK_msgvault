@@ -782,6 +782,11 @@ func (tm *TaskManager) runAudit(ctx context.Context, task *TaskStatus) {
 	task.Results = anomalies
 	task.Message = fmt.Sprintf("%d anomalies detectees", len(anomalies))
 	tm.setTask(task)
+
+	// Persist to database.
+	if resultsJSON, err := json.Marshal(anomalies); err == nil {
+		tm.store.SaveAuditReport("anomalies", string(resultsJSON), task.Message, len(anomalies))
+	}
 }
 
 func (tm *TaskManager) runAuditSensitive(ctx context.Context, task *TaskStatus, limit int) {
@@ -851,6 +856,11 @@ func (tm *TaskManager) runAuditSensitive(ctx context.Context, task *TaskStatus, 
 	task.Results = findings
 	task.Message = fmt.Sprintf("%d donnees sensibles dans %d messages", detected, scanned)
 	tm.setTask(task)
+
+	// Persist to database.
+	if resultsJSON, err := json.Marshal(findings); err == nil {
+		tm.store.SaveAuditReport("sensitive", string(resultsJSON), task.Message, detected)
+	}
 }
 
 func maskSensitiveValue(val string) string {

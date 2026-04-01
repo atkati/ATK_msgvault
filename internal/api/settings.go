@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // SettingsResponse represents the editable settings exposed to the web UI.
@@ -173,6 +175,50 @@ func (s *Server) handleListOllamaModels(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	writeJSON(w, http.StatusOK, models)
+}
+
+func (s *Server) handleListAuditReports(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil || s.taskManager.store == nil {
+		writeJSON(w, http.StatusOK, []interface{}{})
+		return
+	}
+	reports, err := s.taskManager.store.ListAuditReports(50)
+	if err != nil {
+		writeJSON(w, http.StatusOK, []interface{}{})
+		return
+	}
+	type item struct {
+		ID          int64  `json:"id"`
+		AuditType   string `json:"audit_type"`
+		ResultCount int    `json:"result_count"`
+		Summary     string `json:"summary"`
+		CreatedAt   string `json:"created_at"`
+	}
+	out := make([]item, len(reports))
+	for i, r := range reports {
+		out[i] = item{r.ID, r.AuditType, r.ResultCount, r.Summary, r.CreatedAt.Format("02/01/2006 15:04")}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) handleGetAuditReport(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil || s.taskManager.store == nil {
+		writeError(w, http.StatusNotFound, "not_found", "Not found")
+		return
+	}
+	idStr := chi.URLParam(r, "id")
+	var id int64
+	fmt.Sscanf(idStr, "%d", &id)
+	report, err := s.taskManager.store.GetAuditReport(id)
+	if err != nil || report == nil {
+		writeError(w, http.StatusNotFound, "not_found", "Report not found")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `{"id":%d,"audit_type":%q,"result_count":%d,"summary":%q,"created_at":%q,"results":%s}`,
+		report.ID, report.AuditType, report.ResultCount, report.Summary,
+		report.CreatedAt.Format("02/01/2006 15:04"), report.ResultsJSON)
 }
 
 func (s *Server) handleTriggerSyncWeb(w http.ResponseWriter, r *http.Request) {
