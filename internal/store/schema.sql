@@ -398,6 +398,21 @@ CREATE INDEX IF NOT EXISTS idx_ai_entities_message ON ai_entities(message_id);
 CREATE INDEX IF NOT EXISTS idx_ai_entities_type ON ai_entities(entity_type);
 CREATE INDEX IF NOT EXISTS idx_ai_entities_value ON ai_entities(entity_type, value);
 
+-- AI-generated thread/message summaries
+CREATE TABLE IF NOT EXISTS ai_summaries (
+    id INTEGER PRIMARY KEY,
+    conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+    message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+    summary_short TEXT NOT NULL,    -- 3-4 lines quick summary
+    summary_full TEXT,              -- structured: context, key points, actions
+    provider TEXT NOT NULL,
+    model TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_summaries_conv ON ai_summaries(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_ai_summaries_msg ON ai_summaries(message_id);
+
 -- AI embeddings for semantic search
 CREATE TABLE IF NOT EXISTS ai_embeddings (
     message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,

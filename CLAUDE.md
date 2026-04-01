@@ -79,6 +79,9 @@ make lint                     # Run linter
 ./msgvault ai search "probleme remboursement"             # Semantic search
 ./msgvault ai find-entity --type montant                  # Find extracted amounts
 ./msgvault ai find-entity --type iban                     # Find IBANs
+./msgvault ai summarize --thread 5479                     # Summarize a thread
+./msgvault ai summarize --message 42                      # Summarize a message
+./msgvault ai summarize --all-threads --min-messages 5    # Batch summarize
 
 # Export and purge
 ./msgvault export-report --domain uber.com              # CSV report for a domain
