@@ -21,6 +21,7 @@ type APIMessage struct {
 	SizeEstimate   int64
 	DeletedAt      *time.Time
 	Body           string
+	BodyHTML       string
 	Headers        map[string]string
 	Attachments    []APIAttachment
 }
@@ -154,8 +155,9 @@ func (s *Store) GetMessage(id int64) (*APIMessage, error) {
 	}
 	if bodyText.Valid {
 		m.Body = bodyText.String
-	} else if bodyHTML.Valid {
-		m.Body = bodyHTML.String
+	}
+	if bodyHTML.Valid {
+		m.BodyHTML = bodyHTML.String
 	}
 
 	// Get attachments

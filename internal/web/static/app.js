@@ -275,19 +275,11 @@
             document.getElementById("detail-subject").textContent = msg.subject || "(sans sujet)";
 
             var fromEl = document.getElementById("detail-from");
-            var fromAddr = "";
-            if (msg.from && msg.from.length > 0) {
-                fromAddr = msg.from[0].email || "";
-                fromEl.textContent = (msg.from[0].name ? msg.from[0].name + " <" + fromAddr + ">" : fromAddr);
-            } else if (msg.from_email) {
-                fromAddr = msg.from_email;
-                fromEl.textContent = fromAddr;
-            }
-            fromEl.onclick = function () { if (fromAddr) filterBySender(fromAddr); panel.classList.add("hidden"); };
+            var fromAddr = msg.from || msg.from_email || "";
+            fromEl.textContent = fromAddr || "-";
+            fromEl.onclick = function () { if (fromAddr) { filterBySender(fromAddr); panel.classList.add("hidden"); } };
 
-            var toList = [];
-            if (msg.to) toList = msg.to.map(function (a) { return a.name ? a.name + " <" + a.email + ">" : a.email; });
-            else if (msg.to_addresses) toList = msg.to_addresses;
+            var toList = msg.to || [];
             document.getElementById("detail-to").textContent = toList.join(", ") || "-";
 
             document.getElementById("detail-date").textContent = formatDateFull(msg.sent_at);
@@ -312,8 +304,33 @@
                 }).join("");
             }
 
-            var body = msg.body_text || msg.body || "";
-            document.getElementById("detail-body").textContent = body || "(vide)";
+            // Render body: prefer HTML in sandboxed iframe, fallback to plain text.
+            var bodyEl = document.getElementById("detail-body");
+            var bodyHtml = msg.body_html || "";
+            var bodyText = msg.body_text || msg.body || "";
+
+            if (bodyHtml) {
+                // Render HTML email in a sandboxed iframe for safety.
+                bodyEl.innerHTML = "";
+                var iframe = document.createElement("iframe");
+                iframe.sandbox = "allow-same-origin";
+                iframe.style.cssText = "width:100%;border:none;min-height:400px;background:#fff;border-radius:4px;";
+                bodyEl.appendChild(iframe);
+                iframe.addEventListener("load", function () {
+                    var doc = iframe.contentDocument || iframe.contentWindow.document;
+                    doc.open();
+                    doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:sans-serif;font-size:14px;margin:1rem;color:#333;}</style></head><body>' + bodyHtml + '</body></html>');
+                    doc.close();
+                    // Auto-resize iframe to content height.
+                    setTimeout(function () {
+                        try { iframe.style.height = doc.body.scrollHeight + 40 + "px"; } catch (e) {}
+                    }, 200);
+                });
+                // Trigger load.
+                iframe.src = "about:blank";
+            } else {
+                bodyEl.textContent = bodyText || "(vide)";
+            }
         }).catch(function (e) {
             document.getElementById("detail-subject").textContent = "Erreur";
             document.getElementById("detail-body").textContent = e.message;

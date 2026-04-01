@@ -84,6 +84,7 @@ type MessageSummary struct {
 type MessageDetail struct {
 	MessageSummary
 	Body        string           `json:"body"`
+	BodyHTML    string           `json:"body_html,omitempty"`
 	Attachments []AttachmentInfo `json:"attachments"`
 }
 
@@ -232,6 +233,7 @@ func (s *Server) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 	detail := MessageDetail{
 		MessageSummary: toMessageSummary(*msg),
 		Body:           msg.Body,
+		BodyHTML:       msg.BodyHTML,
 	}
 
 	attachments := make([]AttachmentInfo, 0, len(msg.Attachments))
