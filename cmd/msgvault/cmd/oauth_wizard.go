@@ -87,7 +87,7 @@ func runOAuthWizard(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(out, "  Puis selectionnez-le comme projet actif.")
 	fmt.Fprintln(out)
 
-	openBrowser("https://console.cloud.google.com/projectcreate")
+	openBrowserWizard("https://console.cloud.google.com/projectcreate")
 	waitForUser(reader, out)
 
 	// ================================================================
@@ -100,7 +100,7 @@ func runOAuthWizard(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(out, "  Cliquez sur le bouton bleu \"ACTIVER\".")
 	fmt.Fprintln(out)
 
-	openBrowser("https://console.cloud.google.com/apis/library/gmail.googleapis.com")
+	openBrowserWizard("https://console.cloud.google.com/apis/library/gmail.googleapis.com")
 	waitForUser(reader, out)
 
 	// ================================================================
@@ -123,7 +123,7 @@ func runOAuthWizard(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(out, "    7. Utilisateurs test : Ajouter → %s → Enregistrer\n", email)
 	fmt.Fprintln(out)
 
-	openBrowser("https://console.cloud.google.com/apis/credentials/consent")
+	openBrowserWizard("https://console.cloud.google.com/apis/credentials/consent")
 	waitForUser(reader, out)
 
 	// ================================================================
@@ -144,7 +144,7 @@ func runOAuthWizard(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(out, "  Je surveille votre dossier Telechargements...")
 	fmt.Fprintln(out)
 
-	openBrowser("https://console.cloud.google.com/apis/credentials")
+	openBrowserWizard("https://console.cloud.google.com/apis/credentials")
 
 	// Auto-detect the downloaded file.
 	secretsPath, err := detectClientSecret(reader, out)
@@ -376,12 +376,13 @@ func waitForUser(reader *bufio.Reader, out io.Writer) {
 	fmt.Fprintln(out)
 }
 
-// openBrowser opens a URL in the default browser.
-func openBrowser(url string) {
+// openBrowserWizard opens a URL in the default browser.
+func openBrowserWizard(url string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		// start needs an empty title (first quoted arg) before the URL.
+		cmd = exec.Command("cmd", "/c", "start", "", url)
 	case "darwin":
 		cmd = exec.Command("open", url)
 	default:
