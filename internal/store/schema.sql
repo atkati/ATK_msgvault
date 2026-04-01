@@ -397,3 +397,12 @@ CREATE TABLE IF NOT EXISTS ai_entities (
 CREATE INDEX IF NOT EXISTS idx_ai_entities_message ON ai_entities(message_id);
 CREATE INDEX IF NOT EXISTS idx_ai_entities_type ON ai_entities(entity_type);
 CREATE INDEX IF NOT EXISTS idx_ai_entities_value ON ai_entities(entity_type, value);
+
+-- AI embeddings for semantic search
+CREATE TABLE IF NOT EXISTS ai_embeddings (
+    message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+    vector BLOB NOT NULL,       -- float32 array, little-endian
+    dimensions INTEGER NOT NULL,
+    model TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

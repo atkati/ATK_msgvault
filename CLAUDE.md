@@ -74,6 +74,11 @@ make lint                     # Run linter
 ./msgvault ai categorize --message 42 --dry-run          # Preview single message
 ./msgvault ai extract-entities                            # Extract entities (amounts, IBAN, etc.)
 ./msgvault ai extract-entities --message 42               # Single message
+./msgvault ai index                                       # Generate embeddings
+./msgvault ai index --model nomic-embed-text              # With dedicated embed model
+./msgvault ai search "probleme remboursement"             # Semantic search
+./msgvault ai find-entity --type montant                  # Find extracted amounts
+./msgvault ai find-entity --type iban                     # Find IBANs
 
 # Export and purge
 ./msgvault export-report --domain uber.com              # CSV report for a domain
