@@ -67,6 +67,12 @@ make lint                     # Run linter
 ./msgvault import-emlx --account me@gmail.com         # Specific account(s)
 ./msgvault import-emlx /path/to/dir --identifier me@gmail.com  # Manual fallback
 
+# EML file import (Google Takeout, etc.)
+./msgvault import-eml you@gmail.com /path/to/Mail/    # Recursive directory scan
+./msgvault import-eml you@gmail.com /path/to/export.zip  # ZIP archive
+./msgvault import-eml you@gmail.com /path/to/msg.eml  # Single file
+./msgvault import-eml you@gmail.com ./emails --label google-takeout  # With label
+
 # Daemon mode (NAS/server deployment)
 ./msgvault serve                                      # Start HTTP API + scheduled syncs
 
@@ -85,6 +91,7 @@ make lint                     # Run linter
 - `repair_encoding.go` - UTF-8 encoding repair
 
 - `import_emlx.go` - Apple Mail .emlx import command
+- `import_eml.go` - EML file import command (directories, ZIP, single files)
 
 ### Core (`internal/`)
 - `tui/model.go` - Bubble Tea TUI model and update logic
@@ -99,6 +106,11 @@ make lint                     # Run linter
 - `oauth/oauth.go` - OAuth2 flows (browser + device)
 - `sync/sync.go` - Sync orchestration, MIME parsing
 - `mime/parse.go` - MIME message parsing
+- `ai/provider.go` - AIProvider interface (local Ollama / cloud Anthropic/OpenAI)
+- `ai/local.go` - Ollama REST API implementation
+- `ai/cloud.go` - Anthropic & OpenAI-compatible API implementation
+- `ai/router.go` - Feature-based AI provider routing with fallback
+- `importer/eml_import.go` - EML file import (recursive scan, ZIP, labels from paths)
 
 ### TUI Keybindings
 - `j/k` or `↑/↓` - Navigate rows
