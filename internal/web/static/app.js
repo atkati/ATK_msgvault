@@ -709,12 +709,56 @@
                     runningTaskIds[t.type] = t.id;
                     setBtnStop(btn, true);
                 }
+                // Show results for completed audits.
+                if (t.status === "completed" && t.results && t.results.length > 0) {
+                    var card = document.querySelector('[data-task="' + t.type + '"]');
+                    if (card && !card.querySelector(".audit-results")) {
+                        var div = document.createElement("div");
+                        div.className = "audit-results";
+                        renderAuditResults(div, t);
+                        card.appendChild(div);
+                    }
+                }
+
                 if ((t.status === "completed" || t.status === "failed") && btn && runningTaskIds[t.type]) {
                     delete runningTaskIds[t.type];
                     setBtnStop(btn, false);
                 }
             });
         }).catch(function () {});
+    }
+
+    function renderAuditResults(el, task) {
+        var results = task.results || [];
+        if (results.length === 0) return;
+
+        var html = '<div class="results-header">' + results.length + ' resultats</div>';
+        html += '<div class="results-list">';
+
+        if (task.type === "audit") {
+            // Anomaly results: severity + category + message.
+            results.slice(0, 20).forEach(function (r) {
+                var icon = r.severity === "critique" ? "&#9888;" : r.severity === "attention" ? "&#9888;" : "&#8505;";
+                var cls = "result-" + r.severity;
+                html += '<div class="result-item ' + cls + '">' +
+                    '<span class="result-icon">' + icon + '</span> ' +
+                    '<strong>' + esc(r.category) + '</strong> : ' + esc(r.message) +
+                    '</div>';
+            });
+            if (results.length > 20) html += '<div class="result-item">... et ' + (results.length - 20) + ' autres</div>';
+        } else if (task.type === "audit-sensitive") {
+            // Sensitive data results: type + masked value.
+            results.slice(0, 30).forEach(function (r) {
+                html += '<div class="result-item">' +
+                    '<strong>' + esc(r.type) + '</strong> ' +
+                    'msg #' + r.message_id + ' : ' + esc(r.value) +
+                    '</div>';
+            });
+            if (results.length > 30) html += '<div class="result-item">... et ' + (results.length - 30) + ' autres</div>';
+        }
+
+        html += '</div>';
+        el.innerHTML = html;
     }
 
     // ---- Init ----

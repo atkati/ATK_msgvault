@@ -393,6 +393,34 @@ main {
 .sync-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .sync-status { font-size: 0.75rem; color: var(--text-dim); margin-left: 0.5rem; }
 
+/* ---- Audit results ---- */
+.audit-results {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.5rem;
+}
+.results-header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+}
+.results-list {
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 0.75rem;
+}
+.result-item {
+    padding: 0.2rem 0;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.4;
+}
+.result-item:last-child { border-bottom: none; }
+.result-critique { color: var(--danger); }
+.result-attention { color: var(--warning); }
+.result-info { color: var(--text-muted); }
+.result-icon { font-size: 0.8rem; }
+
 /* ---- Actions grid ---- */
 .actions-grid {
     display: grid;
