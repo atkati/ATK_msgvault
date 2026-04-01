@@ -193,8 +193,17 @@ func (s *Server) handleTriggerSyncWeb(w http.ResponseWriter, r *http.Request) {
 
 	// Use the existing scheduler sync trigger if available.
 	if s.scheduler != nil {
+		// If the account is not scheduled, add it first.
+		if !s.scheduler.IsScheduled(req.Account) {
+			if err := s.scheduler.AddAccount(req.Account, ""); err != nil {
+				// Not fatal — try TriggerSync anyway.
+				_ = err
+			}
+		}
+
 		if err := s.scheduler.TriggerSync(req.Account); err != nil {
-			writeError(w, http.StatusInternalServerError, "sync_error", err.Error())
+			writeError(w, http.StatusInternalServerError, "sync_error",
+				fmt.Sprintf("Erreur sync : %s. Assurez-vous que le compte est autorise (msgvault add-account %s)", err.Error(), req.Account))
 			return
 		}
 		writeJSON(w, http.StatusAccepted, map[string]string{
@@ -205,5 +214,5 @@ func (s *Server) handleTriggerSyncWeb(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeError(w, http.StatusServiceUnavailable, "no_scheduler", "Scheduler not available")
+	writeError(w, http.StatusServiceUnavailable, "no_scheduler", "Scheduler non disponible")
 }
