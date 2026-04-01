@@ -38,6 +38,9 @@
                 <a href="#" class="sidebar-item" data-view="actions">
                     <span class="icon">&#9881;</span> Actions IA
                 </a>
+                <a href="#" class="sidebar-item" data-view="settings">
+                    <span class="icon">&#9881;</span> Parametres
+                </a>
             </div>
 
             <div class="sidebar-section">
@@ -118,6 +121,42 @@
                         <div class="action-status" id="status-audit-sensitive">Pret</div>
                         <button class="action-btn" id="btn-audit-sensitive">Lancer</button>
                     </div>
+                </div>
+            </section>
+
+            <!-- Settings -->
+            <section id="view-settings" class="view">
+                <div class="section-header"><h2>Parametres</h2></div>
+
+                <div class="settings-card">
+                    <h3>Intelligence artificielle</h3>
+                    <div class="setting-row">
+                        <label>Provider par defaut</label>
+                        <select id="set-provider">
+                            <option value="off">Desactive</option>
+                            <option value="local">Local (Ollama)</option>
+                            <option value="cloud">Cloud (API)</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label>Modele local</label>
+                        <select id="set-model"><option value="">Chargement...</option></select>
+                    </div>
+                    <div class="setting-row">
+                        <label>Modele embeddings</label>
+                        <select id="set-embed-model"><option value="">Meme que le modele</option></select>
+                    </div>
+                    <div class="setting-row">
+                        <label>Endpoint Ollama</label>
+                        <input type="text" id="set-endpoint" placeholder="http://localhost:11434">
+                    </div>
+                    <button class="action-btn" id="btn-save-settings">Enregistrer</button>
+                    <span id="settings-status" class="settings-status"></span>
+                </div>
+
+                <div class="settings-card">
+                    <h3>Synchronisation Gmail</h3>
+                    <div id="sync-accounts"></div>
                 </div>
             </section>
 

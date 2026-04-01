@@ -165,6 +165,12 @@ func (s *Server) setupRouter() chi.Router {
 		// Token upload for headless OAuth
 		r.Post("/auth/token/{email}", s.handleUploadToken)
 
+		// Settings and models
+		r.Get("/settings", s.handleGetSettings)
+		r.Put("/settings", s.handleUpdateSettings)
+		r.Get("/ollama/models", s.handleListOllamaModels)
+		r.Post("/sync-web", s.handleTriggerSyncWeb)
+
 		// Background tasks (AI, audit, etc.)
 		if s.taskManager != nil {
 			s.taskManager.RegisterRoutes(r)
