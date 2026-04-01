@@ -122,6 +122,16 @@ func (tm *TaskManager) RegisterRoutes(r chi.Router) {
 	r.Post("/tasks/index", tm.handleStartIndex)
 	r.Post("/tasks/audit", tm.handleStartAudit)
 	r.Post("/tasks/audit-sensitive", tm.handleStartAuditSensitive)
+	r.Post("/tasks/run-all", tm.handleRunAll)
+}
+
+func (tm *TaskManager) handleRunAll(w http.ResponseWriter, r *http.Request) {
+	// Launch the auto-process pipeline in background.
+	go tm.runAutoProcess()
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"status":  "started",
+		"message": "Pipeline IA lance : categorisation → entites → indexation",
+	})
 }
 
 func (tm *TaskManager) handleListTasks(w http.ResponseWriter, r *http.Request) {

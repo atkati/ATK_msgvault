@@ -622,6 +622,83 @@
         });
     }
 
+    // ---- Global task bar ----
+    var taskBarPoll = null;
+
+    function startTaskBarPoll() {
+        if (taskBarPoll) return;
+        updateTaskBar();
+        taskBarPoll = setInterval(updateTaskBar, 3000);
+    }
+
+    function updateTaskBar() {
+        apiFetch("/tasks").then(function (tasks) {
+            var bar = document.getElementById("task-bar");
+            var items = document.getElementById("task-bar-items");
+            var running = tasks.filter(function (t) { return t.status === "running"; });
+            var recent = tasks.filter(function (t) {
+                return t.status !== "running" && t.started_at &&
+                    (Date.now() - new Date(t.started_at).getTime()) < 60000;
+            });
+            var visible = running.concat(recent);
+
+            if (visible.length === 0) {
+                bar.classList.add("hidden");
+                if (running.length === 0 && taskBarPoll) {
+                    // Keep polling less frequently when idle.
+                }
+                return;
+            }
+            bar.classList.remove("hidden");
+
+            var typeNames = {
+                "categorize": "Categorisation",
+                "extract-entities": "Entites",
+                "index": "Indexation",
+                "audit": "Audit",
+                "audit-sensitive": "Audit sensible",
+                "sync": "Sync Gmail"
+            };
+
+            items.innerHTML = visible.map(function (t) {
+                var pct = t.total > 0 ? Math.round(t.progress / t.total * 100) : 0;
+                var name = typeNames[t.type] || t.type;
+                var statusClass = t.status;
+                var text = t.message || t.status;
+                if (t.status === "running" && t.total > 0) {
+                    text = t.progress + "/" + t.total;
+                }
+                return '<div class="task-bar-item ' + statusClass + '">' +
+                    '<span class="tbi-label">' + name + '</span>' +
+                    '<div class="tbi-progress"><div class="tbi-fill" style="width:' + pct + '%"></div></div>' +
+                    '<span class="tbi-text">' + esc(text) + '</span>' +
+                    '</div>';
+            }).join("");
+
+            // Also update action buttons if on actions page.
+            tasks.forEach(function (t) {
+                var progEl = document.getElementById("prog-" + t.type);
+                var statusEl = document.getElementById("status-" + t.type);
+                var btn = document.getElementById("btn-" + t.type);
+                if (progEl && t.total > 0) {
+                    progEl.style.width = Math.round(t.progress / t.total * 100) + "%";
+                }
+                if (statusEl) {
+                    statusEl.textContent = t.message || t.status;
+                    statusEl.className = "action-status " + t.status;
+                }
+                if (t.status === "running" && btn) {
+                    runningTaskIds[t.type] = t.id;
+                    setBtnStop(btn, true);
+                }
+                if ((t.status === "completed" || t.status === "failed") && btn && runningTaskIds[t.type]) {
+                    delete runningTaskIds[t.type];
+                    setBtnStop(btn, false);
+                }
+            });
+        }).catch(function () {});
+    }
+
     // ---- Init ----
     function init() {
         initTheme();
@@ -665,6 +742,28 @@
         // Actions buttons.
         initActions();
 
+        // Run all button.
+        document.getElementById("btn-run-all").addEventListener("click", function () {
+            var btn = this;
+            var statusEl = document.getElementById("status-run-all");
+            btn.disabled = true;
+            statusEl.textContent = "Lancement du pipeline...";
+            statusEl.style.color = "var(--accent)";
+
+            fetch(API + "/tasks/run-all", { method: "POST", headers: apiHeaders() })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    statusEl.textContent = d.message || "Lance";
+                    // Re-enable after 5s (pipeline runs in background, tracked in task bar).
+                    setTimeout(function () { btn.disabled = false; statusEl.textContent = ""; }, 5000);
+                })
+                .catch(function (err) {
+                    statusEl.textContent = "Erreur : " + err.message;
+                    statusEl.style.color = "var(--danger)";
+                    btn.disabled = false;
+                });
+        });
+
         // Settings save button.
         document.getElementById("btn-save-settings").addEventListener("click", saveSettings);
 
@@ -672,6 +771,7 @@
         loadStatsBar();
         loadSidebar();
         loadDashboard();
+        startTaskBarPoll();
     }
 
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
