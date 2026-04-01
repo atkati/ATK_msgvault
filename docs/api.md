@@ -587,6 +587,98 @@ const results = await fetch(`${API_URL}/search?${params}`, { headers }).then(r =
 results.messages.forEach(msg => console.log(`- ${msg.subject}`));
 ```
 
+## ATK Fork Endpoints
+
+### Settings
+
+**GET /api/v1/settings** — Read current configuration.
+
+Response:
+```json
+{
+  "ai": {
+    "default_provider": "local",
+    "local_endpoint": "http://localhost:11434",
+    "local_model": "llama3.2:latest",
+    "local_embed_model": "",
+    "cloud_endpoint": "https://api.anthropic.com",
+    "cloud_model": "claude-sonnet-4-20250514",
+    "cloud_api_key_env": "ANTHROPIC_API_KEY",
+    "cloud_api_key_set": false
+  },
+  "accounts": [
+    {"email": "you@gmail.com", "schedule": "", "enabled": false}
+  ]
+}
+```
+
+**PUT /api/v1/settings** — Update AI configuration (partial update).
+
+Request:
+```json
+{
+  "default_provider": "local",
+  "local_model": "llama3.2:latest"
+}
+```
+
+**GET /api/v1/ollama/models** — List available Ollama models.
+
+Response:
+```json
+[
+  {"name": "llama3.2:latest", "size": 2019393189, "parameter_size": "3.2B"},
+  {"name": "qwen3:4b", "size": 2497293931, "parameter_size": "4.0B"}
+]
+```
+
+### Sync
+
+**POST /api/v1/sync-web** — Trigger Gmail sync for an account.
+
+Request:
+```json
+{"account": "you@gmail.com"}
+```
+
+Returns a task object for status tracking.
+
+### Background Tasks
+
+**GET /api/v1/tasks** — List all tasks (running and completed).
+
+**GET /api/v1/tasks/{id}** — Get task status.
+
+Response:
+```json
+{
+  "id": "cat-1775053780",
+  "type": "categorize",
+  "status": "running",
+  "progress": 523,
+  "total": 4835,
+  "message": "523/4835 categorises",
+  "started_at": "2026-04-01T16:29:40+02:00"
+}
+```
+
+**POST /api/v1/tasks/{type}** — Start a background task.
+
+Types: `categorize`, `extract-entities`, `index`, `audit`, `audit-sensitive`
+
+Optional query parameter: `?limit=500`
+
+**DELETE /api/v1/tasks/{id}** — Cancel a running task.
+
+### Auto-Process
+
+After a successful sync triggered via `/sync-web`, the server automatically chains:
+1. Categorize new messages
+2. Extract entities from new messages
+3. Generate embeddings for new messages
+
+Each step only processes messages not yet handled. Steps are visible in the task list and can be cancelled individually.
+
 ## Deferred Enhancements
 
 These are tracked as follow-ups and not required for the initial merge:
