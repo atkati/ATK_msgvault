@@ -74,6 +74,7 @@ type Config struct {
 	OAuth    OAuthConfig       `toml:"oauth"`
 	Sync     SyncConfig        `toml:"sync"`
 	Chat     ChatConfig        `toml:"chat"`
+	AI       AIConfig          `toml:"ai"`
 	Server   ServerConfig      `toml:"server"`
 	Remote   RemoteConfig      `toml:"remote"`
 	Accounts []AccountSchedule `toml:"accounts"`
@@ -141,6 +142,29 @@ type SyncConfig struct {
 	RateLimitQPS int `toml:"rate_limit_qps"`
 }
 
+// AIConfig holds AI provider configuration.
+type AIConfig struct {
+	DefaultProvider string            `toml:"default_provider"` // "off", "local", "cloud"
+	Local           AILocalConfig     `toml:"local"`
+	Cloud           AICloudConfig     `toml:"cloud"`
+	Routing         map[string]string `toml:"routing"` // feature -> provider
+}
+
+// AILocalConfig holds configuration for the local AI provider (Ollama).
+type AILocalConfig struct {
+	Endpoint   string `toml:"endpoint"`
+	Model      string `toml:"model"`
+	EmbedModel string `toml:"embed_model"`
+}
+
+// AICloudConfig holds configuration for the cloud AI provider.
+type AICloudConfig struct {
+	Endpoint   string `toml:"endpoint"`
+	Model      string `toml:"model"`
+	EmbedModel string `toml:"embed_model"`
+	APIKeyEnv  string `toml:"api_key_env"`
+}
+
 // DefaultHome returns the default msgvault home directory.
 // Respects MSGVAULT_HOME environment variable and expands ~ in its value.
 func DefaultHome() string {
@@ -169,6 +193,19 @@ func NewDefaultConfig() *Config {
 			Server:     "http://localhost:11434",
 			Model:      "gpt-oss-128k",
 			MaxResults: 20,
+		},
+		AI: AIConfig{
+			DefaultProvider: "off",
+			Local: AILocalConfig{
+				Endpoint:   "http://localhost:11434",
+				Model:      "mistral:7b",
+				EmbedModel: "nomic-embed-text",
+			},
+			Cloud: AICloudConfig{
+				Endpoint:  "https://api.anthropic.com",
+				Model:     "claude-sonnet-4-20250514",
+				APIKeyEnv: "ANTHROPIC_API_KEY",
+			},
 		},
 		Server: ServerConfig{
 			APIPort:  8080,
