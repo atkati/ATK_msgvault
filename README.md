@@ -1,217 +1,215 @@
-# msgvault
+# ATK_msgvault
 
 [![Go 1.25+](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/Docs-msgvault.io-blue)](https://msgvault.io)
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/fDnmxB8Wkq)
 
-[Documentation](https://msgvault.io) · [Setup Guide](https://msgvault.io/guides/oauth-setup/) · [Interactive TUI](https://msgvault.io/usage/tui/)
+> Fork de [wesm/msgvault](https://github.com/wesm/msgvault) par Pascal PORTIER — archiveur email offline avec IA hybride.
 
-> **Alpha software.** APIs, storage format, and CLI flags may change without notice. Back up your data.
+Archivez vos emails pour toujours. Recherche, analyse et IA 100% offline.
 
-Archive a lifetime of email. Analytics and search in milliseconds, entirely offline.
+## Pourquoi ce fork ?
 
-## Why msgvault?
+msgvault original est un excellent outil d'archivage email. Ce fork l'enrichit avec des fonctionnalités absentes du projet upstream, en respectant les principes de **souveraineté numérique** et de fonctionnement **100% offline-first** :
 
-Your messages are yours. Decades of correspondence, attachments, and history shouldn't be locked behind a web interface or an API. msgvault downloads a complete local copy and then everything runs offline. Search, analytics, and the MCP server all work against local data with no network access required.
+- Import Google Takeout (fichiers `.eml`)
+- IA hybride local/cloud (Ollama ou API Anthropic/OpenAI)
+- Interface web locale embarquée
+- Outils d'analyse et d'audit des archives
 
-Currently supports Gmail and IMAP sync, plus offline imports from MBOX exports and Apple Mail (.emlx) directories.
+## Nouvelles fonctionnalités
 
-## Features
+### Import EML (Google Takeout)
 
-- **Full Gmail backup**: raw MIME, attachments, labels, and metadata
-- **IMAP sync**: archive mail from any standard IMAP server
-- **MBOX / Apple Mail import**: import email from MBOX exports or Apple Mail (.emlx) directories
-- **Interactive TUI**: drill-down analytics over your entire message history, powered by DuckDB over Parquet — connects to a remote `msgvault serve` instance or runs locally
-- **Full-text search**: FTS5 with Gmail-like query syntax (`from:`, `has:attachment`, date ranges)
-- **MCP server**: access your full archive at the speed of thought in Claude Desktop and other MCP-capable AI agents
-- **DuckDB analytics**: millisecond aggregate queries across hundreds of thousands of messages in the TUI, CLI, and MCP server
-- **Incremental sync**: History API picks up only new and changed messages
-- **Multi-account**: archive several Gmail and IMAP accounts in a single database
-- **Resumable**: interrupted syncs resume from the last checkpoint
-- **Content-addressed attachments**: deduplicated by SHA-256
+Import de fichiers `.eml` depuis Google Takeout ou toute autre source.
+
+```bash
+msgvault import-eml you@gmail.com /chemin/vers/Takeout/Mail/
+msgvault import-eml you@gmail.com /chemin/vers/export.zip
+msgvault import-eml you@gmail.com message.eml --label google-takeout
+```
+
+- Scan recursif de repertoires, support ZIP
+- Labels hierarchiques depuis l'arborescence des dossiers
+- Deduplication SHA-256, reprise sur interruption
+
+### Interface web locale
+
+Interface web embarquee dans le binaire, zero dependance externe.
+
+```bash
+msgvault serve    # puis ouvrir http://localhost:8080/
+```
+
+- Tableau de bord avec statistiques
+- Navigation par labels et expediteurs (sidebar cliquable)
+- Recherche full-text avec rendu HTML des emails
+- Mode sombre/clair, design responsive
+
+### IA hybride (Ollama / Cloud)
+
+Couche d'abstraction IA avec double moteur local (Ollama) et cloud (Anthropic/OpenAI).
+
+```bash
+# Categorisation automatique
+msgvault ai categorize --ai local --model llama3.2 --limit 500
+
+# Extraction d'entites (montants, IBAN, noms, dates...)
+msgvault ai extract-entities --ai local --limit 200
+
+# Recherche semantique par embeddings
+msgvault ai index --ai local --limit 1000
+msgvault ai search "probleme remboursement assurance"
+
+# Resume de fil de conversation
+msgvault ai summarize --thread 5479
+
+# Assistant conversationnel (RAG)
+msgvault ai chat
+> Combien d'emails d'Uber en 2024 ?
+> Resume mes echanges avec Groupama
+```
+
+Configuration dans `config.toml` :
+
+```toml
+[ai]
+default_provider = "local"    # "local", "cloud", "off"
+
+[ai.local]
+endpoint = "http://localhost:11434"
+model = "llama3.2"
+
+[ai.routing]
+categorize = "local"          # masse → local
+summarize = "cloud"           # synthese fine → cloud
+```
+
+### Tags personnalises
+
+Systeme de tags independant des labels Gmail.
+
+```bash
+msgvault tag add 42 "SENSIBLE" --color "#ff0000"
+msgvault tag list
+msgvault tag search "SENSIBLE"
+```
+
+### Export analytique
+
+Rapports CSV des echanges avec un domaine ou expediteur.
+
+```bash
+msgvault export-report --domain uber.com --output rapport-uber.csv
+msgvault export-report --sender support@groupama.fr --after 2023-01-01
+```
+
+### Purge assistee
+
+Identification des candidats a la suppression (newsletters, notifications).
+
+```bash
+msgvault suggest-purge
+msgvault suggest-purge --min-count 50
+```
+
+### Audit
+
+Detection d'anomalies et de donnees sensibles dans l'archive.
+
+```bash
+# Anomalies : doublons, spoofing, volumes suspects
+msgvault ai audit
+
+# Donnees sensibles : IBAN, cartes bancaires, mots de passe, NIR
+msgvault audit-sensitive
+msgvault audit-sensitive --tag    # auto-tag "SENSIBLE"
+```
+
+### OAuth Wizard
+
+Assistant interactif pour configurer Google OAuth.
+
+```bash
+msgvault oauth-wizard you@gmail.com
+```
+
+Ouvre automatiquement les bonnes pages Google Cloud Console, detecte le fichier `client_secret.json` dans vos telechargements, configure tout automatiquement.
 
 ## Installation
 
-**macOS / Linux:**
-```bash
-curl -fsSL https://msgvault.io/install.sh | bash
-```
-
-**Windows (PowerShell):**
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://msgvault.io/install.ps1 | iex"
-```
-
-The installer detects your OS and architecture, downloads the latest release from [GitHub Releases](https://github.com/wesm/msgvault/releases), verifies the SHA-256 checksum, and installs the binary. You can review the script ([bash](https://msgvault.io/install.sh), [PowerShell](https://msgvault.io/install.ps1)) before running, or download a release binary directly from GitHub.
-
-To build from source instead (requires **Go 1.25+** and a C/C++ compiler for CGO and to statically link DuckDB):
+Necessite **Go 1.25+** et un compilateur C (pour CGO/SQLite/DuckDB).
 
 ```bash
-git clone https://github.com/wesm/msgvault.git
-cd msgvault
+git clone https://github.com/atkati/ATK_msgvault.git
+cd ATK_msgvault
 make install
 ```
 
-**Conda-Forge:**
+Sur Windows avec MSYS2 :
 
-You can install msgvault [from conda-forge](https://prefix.dev/channels/conda-forge/packages/msgvault) using Pixi or Conda:
-
-```bash
-pixi global install msgvault
-conda install -c conda-forge msgvault
+```powershell
+$env:PATH = "C:\msys64\ucrt64\bin;C:\Program Files\Go\bin;$env:PATH"
+$env:CGO_ENABLED = "1"
+go build -tags fts5 -o msgvault.exe ./cmd/msgvault/
 ```
 
-## Quick Start
-
-> **Prerequisites:** You need a Google Cloud OAuth credential before adding an account.
-> Follow the **[OAuth Setup Guide](https://msgvault.io/guides/oauth-setup/)** to create one (~5 minutes).
+## Demarrage rapide
 
 ```bash
 msgvault init-db
-msgvault add-account you@gmail.com          # opens browser for OAuth
-msgvault sync-full you@gmail.com --limit 100
-msgvault tui
+msgvault oauth-wizard you@gmail.com     # guide OAuth interactif
+msgvault sync-full you@gmail.com        # synchroniser vos emails
+msgvault serve                          # lancer l'interface web
 ```
 
-## Commands
+## Commandes ajoutees par ce fork
 
-| Command | Description |
-|---------|-------------|
-| `init-db` | Create the database |
-| `add-account EMAIL` | Authorize a Gmail account (use `--headless` for servers) or add an IMAP account |
-| `sync-full EMAIL` | Full sync (`--limit N`, `--after`/`--before` for date ranges) |
-| `sync EMAIL` | Sync only new/changed messages |
-| `tui` | Launch the interactive TUI (`--account` to filter, `--local` to force local) |
-| `search QUERY` | Search messages (`--account` to filter, `--json` for machine output) |
-| `show-message ID` | View full message details (`--json` for machine output) |
-| `mcp` | Start the MCP server for AI assistant integration |
-| `serve` | Run daemon with scheduled sync and HTTP API for remote TUI |
-| `stats` | Show archive statistics |
-| `list-accounts` | List synced email accounts |
-| `verify EMAIL` | Verify archive integrity against Gmail |
-| `export-eml` | Export a message as `.eml` |
-| `import-mbox` | Import email from an MBOX export or `.zip` of MBOX files |
-| `import-emlx` | Import email from an Apple Mail directory tree |
-| `build-cache` | Rebuild the Parquet analytics cache |
-| `update` | Update msgvault to the latest version |
-| `setup` | Interactive first-run configuration wizard |
-| `repair-encoding` | Fix UTF-8 encoding issues |
-| `list-senders` / `list-domains` / `list-labels` | Explore metadata |
+| Commande | Description |
+|----------|-------------|
+| `import-eml` | Import de fichiers .eml (Google Takeout, etc.) |
+| `oauth-wizard` | Assistant OAuth interactif |
+| `tag add/remove/list/search/delete` | Tags personnalises |
+| `export-report` | Export CSV par domaine/expediteur |
+| `suggest-purge` | Detection newsletters/notifications |
+| `ai categorize` | Classification IA des emails |
+| `ai extract-entities` | Extraction d'entites nommees (NER) |
+| `ai index` | Generation d'embeddings |
+| `ai search` | Recherche semantique |
+| `ai summarize` | Resume de threads |
+| `ai chat` | Assistant conversationnel RAG |
+| `ai audit` | Detection d'anomalies |
+| `ai find-entity` | Recherche dans les entites extraites |
+| `audit-sensitive` | Scan de donnees sensibles |
 
-See the [CLI Reference](https://msgvault.io/cli-reference/) for full details.
+## Architecture
 
-## Importing from MBOX or Apple Mail
+Binaire unique Go. Pas de dependance externe (sauf Ollama pour l'IA locale).
 
-Import email from providers that offer MBOX exports or from a local Apple Mail data directory:
-
-```bash
-msgvault init-db
-msgvault import-mbox you@example.com /path/to/export.mbox
-msgvault import-mbox you@example.com /path/to/export.zip   # zip of MBOX files
-msgvault import-emlx                                        # auto-discover Apple Mail accounts
-msgvault import-emlx you@example.com ~/Library/Mail/V10     # explicit path
+```
+internal/
+├── ai/          # Interface AIProvider + implementations Ollama/Cloud
+├── importer/    # Import EML, MBOX, Apple Mail
+├── store/       # SQLite (messages, tags, categories, entites, embeddings)
+├── web/         # Interface web embarquee (HTML/CSS/JS via embed.FS)
+├── query/       # DuckDB/Parquet analytics
+└── ...          # OAuth, sync, TUI, MCP, etc.
 ```
 
-## Configuration
-
-All data lives in `~/.msgvault/` by default (override with `MSGVAULT_HOME`).
+## Configuration locale FR
 
 ```toml
-# ~/.msgvault/config.toml
-[oauth]
-client_secrets = "/path/to/client_secret.json"
-
-[sync]
-rate_limit_qps = 5
+[display]
+locale = "fr"
+date_format = "02/01/2006 15:04"
 ```
 
-See the [Configuration Guide](https://msgvault.io/configuration/) for all options.
+Recherche accent-insensitive : "resume" trouve aussi "resume" (FTS5 unicode61).
 
-### Multiple OAuth Apps (Google Workspace)
+## Upstream
 
-Some Google Workspace organizations require OAuth apps within their org.
-To use multiple OAuth apps, add named apps to `config.toml`:
+Ce fork est base sur [msgvault](https://github.com/wesm/msgvault) v0.11.0 par Wes McKinney.
+Toutes les fonctionnalites upstream (Gmail sync, IMAP, TUI, MCP, DuckDB) sont preservees.
 
-```toml
-[oauth]
-client_secrets = "/path/to/default_secret.json"   # for personal Gmail
+## Licence
 
-[oauth.apps.acme]
-client_secrets = "/path/to/acme_workspace_secret.json"
-```
-
-Then specify the app when adding accounts:
-
-```bash
-msgvault add-account you@acme.com --oauth-app acme
-msgvault add-account personal@gmail.com              # uses default
-```
-
-To switch an existing account to a different OAuth app:
-
-```bash
-msgvault add-account you@acme.com --oauth-app acme   # re-authorizes
-```
-
-## MCP Server
-
-msgvault includes an MCP server that lets AI assistants search, analyze, and read your archived messages. Connect it to Claude Desktop or any MCP-capable agent and query your full message history conversationally. See the [MCP documentation](https://msgvault.io/usage/chat/) for setup instructions.
-
-## Daemon Mode (NAS/Server)
-
-Run msgvault as a long-running daemon for scheduled syncs and remote access:
-
-```bash
-msgvault serve
-```
-
-Configure scheduled syncs in `config.toml`:
-
-```toml
-[[accounts]]
-email = "you@gmail.com"
-schedule = "0 2 * * *"   # 2am daily (cron)
-enabled = true
-
-[server]
-api_port = 8080
-bind_addr = "0.0.0.0"
-api_key = "your-secret-key"
-```
-
-The TUI can connect to a remote server by configuring `[remote].url`. Use `--local` to force local database when remote is configured. See [docs/api.md](docs/api.md) for the HTTP API reference.
-
-## Documentation
-
-- [Setup Guide](https://msgvault.io/guides/oauth-setup/): OAuth, first sync, headless servers
-- [Searching](https://msgvault.io/usage/searching/): query syntax and operators
-- [Interactive TUI](https://msgvault.io/usage/tui/): keybindings, views, deletion staging
-- [CLI Reference](https://msgvault.io/cli-reference/): all commands and flags
-- [Multi-Account](https://msgvault.io/usage/multi-account/): managing multiple Gmail accounts
-- [Configuration](https://msgvault.io/configuration/): config file and environment variables
-- [Architecture](https://msgvault.io/architecture/storage/): SQLite, Parquet, and attachment storage
-- [MCP Server](https://msgvault.io/usage/chat/): AI assistant integration
-- [Troubleshooting](https://msgvault.io/troubleshooting/): common issues and fixes
-- [Development](https://msgvault.io/development/): contributing, testing, building
-
-## Community
-
-Join the [msgvault Discord](https://discord.gg/fDnmxB8Wkq) to ask questions, share feedback, report issues, and connect with other users.
-
-## Development
-
-```bash
-git clone https://github.com/wesm/msgvault.git
-cd msgvault
-make install-hooks  # install pre-commit hook (requires prek)
-make test           # run tests
-make lint           # run linter (auto-fix)
-make install        # build and install
-```
-
-Pre-commit hooks are managed by [prek](https://prek.j178.dev/) (`brew install prek`).
-
-## License
-
-MIT. See [LICENSE](LICENSE) for details.
+MIT. Voir [LICENSE](LICENSE).
