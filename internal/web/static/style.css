@@ -455,6 +455,47 @@ main {
     cursor: not-allowed;
 }
 
+/* ---- Task notification bar ---- */
+.task-bar {
+    position: fixed;
+    bottom: 0;
+    left: var(--sidebar-width);
+    right: 0;
+    background: var(--bg-sidebar);
+    border-top: 1px solid var(--border);
+    padding: 0.5rem 1.25rem;
+    z-index: 40;
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    overflow-x: auto;
+    font-size: 0.8rem;
+}
+.task-bar.hidden { display: none; }
+
+.task-bar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+.task-bar-item .tbi-label { color: var(--text-muted); }
+.task-bar-item .tbi-progress {
+    width: 80px; height: 4px;
+    background: var(--bg-hover); border-radius: 2px; overflow: hidden;
+}
+.task-bar-item .tbi-fill {
+    height: 100%; background: var(--accent); border-radius: 2px;
+    transition: width 0.5s;
+}
+.task-bar-item .tbi-text { color: var(--text); }
+.task-bar-item.completed .tbi-text { color: var(--success); }
+.task-bar-item.failed .tbi-text { color: var(--danger); }
+
+@media (max-width: 768px) {
+    .task-bar { left: 0; }
+}
+
 /* ---- States ---- */
 .loading { text-align: center; padding: 3rem; color: var(--text-dim); }
 .empty { text-align: center; padding: 3rem; color: var(--text-dim); }

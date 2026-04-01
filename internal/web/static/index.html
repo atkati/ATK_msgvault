@@ -80,6 +80,10 @@
                 <div class="section-header">
                     <h2>Actions IA &amp; Maintenance</h2>
                 </div>
+                <div style="margin-bottom:1rem;">
+                    <button class="action-btn" id="btn-run-all" style="padding:0.6rem 1.5rem;font-size:0.95rem;">&#9654; Tout lancer (Categoriser + Entites + Indexer)</button>
+                    <span id="status-run-all" class="action-status" style="margin-left:0.75rem;"></span>
+                </div>
                 <div class="actions-grid">
                     <div class="action-card" data-task="categorize">
                         <div class="action-icon">&#129302;</div>
@@ -198,6 +202,11 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Task notification bar (visible from any page) -->
+    <div id="task-bar" class="task-bar hidden">
+        <div id="task-bar-items"></div>
     </div>
 
     <script src="app.js"></script>
