@@ -744,3 +744,70 @@ func (tm *TaskManager) runAuditSensitive(task *TaskStatus, limit int) {
 	task.Message = fmt.Sprintf("%d donnees sensibles dans %d messages", detected, scanned)
 	tm.setTask(task)
 }
+
+// runAutoProcess chains AI tasks after a sync: categorize → extract entities → index.
+// Each step only runs if there are new messages to process. Skips steps where
+// the provider is unavailable.
+func (tm *TaskManager) runAutoProcess() {
+	provider, err := tm.resolveProvider()
+	if err != nil {
+		tm.log.Info("auto-process: IA non disponible, etape IA ignoree", "error", err)
+		return
+	}
+
+	// Step 1: Categorize new messages.
+	uncatIDs, _ := tm.store.ListUncategorizedMessageIDs(10000)
+	if len(uncatIDs) > 0 {
+		tm.log.Info("auto-process: categorisation", "messages", len(uncatIDs))
+		task := &TaskStatus{
+			ID:        fmt.Sprintf("auto-cat-%d", time.Now().Unix()),
+			Type:      "categorize",
+			Status:    "running",
+			Total:     len(uncatIDs),
+			Message:   fmt.Sprintf("Auto: 0/%d", len(uncatIDs)),
+			StartedAt: time.Now().Format(time.RFC3339),
+		}
+		tm.setTask(task)
+		ctx, cancel := context.WithCancel(context.Background())
+		tm.registerCancel(task.ID, cancel)
+		tm.runCategorize(ctx, task, provider, 10000) // Blocking — wait for completion.
+	}
+
+	// Step 2: Extract entities from new messages.
+	nerIDs, _ := listMsgsWithoutEntities(tm.store, 10000)
+	if len(nerIDs) > 0 {
+		tm.log.Info("auto-process: extraction entites", "messages", len(nerIDs))
+		task := &TaskStatus{
+			ID:        fmt.Sprintf("auto-ner-%d", time.Now().Unix()),
+			Type:      "extract-entities",
+			Status:    "running",
+			Total:     len(nerIDs),
+			Message:   fmt.Sprintf("Auto: 0/%d", len(nerIDs)),
+			StartedAt: time.Now().Format(time.RFC3339),
+		}
+		tm.setTask(task)
+		ctx, cancel := context.WithCancel(context.Background())
+		tm.registerCancel(task.ID, cancel)
+		tm.runExtractEntities(ctx, task, provider, 10000)
+	}
+
+	// Step 3: Index new messages (embeddings).
+	idxIDs, _ := tm.store.ListMessageIDsWithoutEmbedding(10000)
+	if len(idxIDs) > 0 {
+		tm.log.Info("auto-process: indexation embeddings", "messages", len(idxIDs))
+		task := &TaskStatus{
+			ID:        fmt.Sprintf("auto-idx-%d", time.Now().Unix()),
+			Type:      "index",
+			Status:    "running",
+			Total:     len(idxIDs),
+			Message:   fmt.Sprintf("Auto: 0/%d", len(idxIDs)),
+			StartedAt: time.Now().Format(time.RFC3339),
+		}
+		tm.setTask(task)
+		ctx, cancel := context.WithCancel(context.Background())
+		tm.registerCancel(task.ID, cancel)
+		tm.runIndex(ctx, task, provider, 10000)
+	}
+
+	tm.log.Info("auto-process: termine")
+}

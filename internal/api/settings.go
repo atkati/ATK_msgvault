@@ -233,16 +233,14 @@ func (s *Server) runSyncSubprocess(task *TaskStatus, account string) {
 			msg = msg[len(msg)-200:]
 		}
 		task.Message = fmt.Sprintf("Sync echouee : %s", msg)
-	} else {
-		task.Status = "completed"
-		msg := string(output)
-		if len(msg) > 200 {
-			msg = msg[len(msg)-200:]
-		}
-		task.Message = fmt.Sprintf("Sync terminee pour %s", account)
-		if msg != "" {
-			task.Message += " — " + msg
-		}
+		s.taskManager.setTask(task)
+		return
 	}
+
+	task.Status = "completed"
+	task.Message = fmt.Sprintf("Sync terminee pour %s", account)
 	s.taskManager.setTask(task)
+
+	// Auto-process: chain AI tasks on new messages.
+	s.taskManager.runAutoProcess()
 }
