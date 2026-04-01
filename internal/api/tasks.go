@@ -281,9 +281,23 @@ func (tm *TaskManager) resolveProvider() (ai.AIProvider, error) {
 		if embedModel == "" {
 			embedModel = model
 		}
+		// Try the configured model first; if it 404s, fall back to llama3.2.
 		p := ai.NewLocalProvider(endpoint, model, embedModel)
 		if !p.Available() {
 			return nil, fmt.Errorf("Ollama non disponible sur %s", endpoint)
+		}
+		// Quick test: try a minimal completion to verify the model exists.
+		_, testErr := p.Complete(context.Background(), ai.CompletionRequest{
+			Messages:  []ai.Message{{Role: ai.RoleUser, Content: "test"}},
+			MaxTokens: 1,
+		})
+		if testErr != nil && model != "llama3.2" {
+			tm.log.Warn("model not available, falling back", "model", model, "fallback", "llama3.2", "error", testErr)
+			model = "llama3.2"
+			if embedModel == tm.cfg.AI.Local.Model || embedModel == "" {
+				embedModel = model
+			}
+			p = ai.NewLocalProvider(endpoint, model, embedModel)
 		}
 		return p, nil
 
@@ -320,9 +334,11 @@ func (tm *TaskManager) runCategorize(task *TaskStatus, provider ai.AIProvider, l
 
 	prompt := `Tu es un classificateur d'emails. Classe dans UNE categorie parmi : administratif, commercial, personnel, newsletter, facture, litige, notification, spam, professionnel. Reponds UNIQUEMENT avec un JSON : {"category":"...","confidence":0.0-1.0} /no_think`
 
+	var errors int
 	for i, msgID := range ids {
 		subject, snippet, fromEmail, err := tm.store.GetMessageSnippetAndSubject(msgID)
 		if err != nil {
+			errors++
 			continue
 		}
 
@@ -335,6 +351,18 @@ func (tm *TaskManager) runCategorize(task *TaskStatus, provider ai.AIProvider, l
 			MaxTokens:   100,
 		})
 		if err != nil {
+			errors++
+			if errors <= 3 {
+				tm.log.Warn("AI categorize error", "id", msgID, "error", err)
+			}
+			// If too many consecutive errors, likely a model/connection issue. Abort.
+			if errors > 10 && task.Progress == 0 {
+				task.Status = "failed"
+				task.Error = fmt.Sprintf("Trop d'erreurs (%d). Verifiez Ollama et le modele. Derniere erreur : %s", errors, err)
+				task.Message = task.Error
+				tm.setTask(task)
+				return
+			}
 			continue
 		}
 
@@ -350,12 +378,12 @@ func (tm *TaskManager) runCategorize(task *TaskStatus, provider ai.AIProvider, l
 		}
 
 		task.Progress = i + 1
-		task.Message = fmt.Sprintf("%d/%d", i+1, len(ids))
+		task.Message = fmt.Sprintf("%d/%d categorises", i+1, len(ids))
 		tm.setTask(task)
 	}
 
 	task.Status = "completed"
-	task.Message = fmt.Sprintf("Termine : %d messages", task.Progress)
+	task.Message = fmt.Sprintf("Termine : %d categorises, %d erreurs", task.Progress, errors)
 	tm.setTask(task)
 }
 
