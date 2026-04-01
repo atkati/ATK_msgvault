@@ -141,7 +141,10 @@ msgvault serve    # ouvrir http://localhost:8080/
 - **Parametres** : choix du modele Ollama, provider, endpoint — tout configurable
 - **Sync Gmail** : bouton Synchroniser avec suivi de progression
 - **Auto-process** : apres chaque sync, categorisation + NER + indexation automatiques
-- **Controle** : barres de progression temps reel, bouton Arreter pour chaque tache
+- **Controle** : barres de progression temps reel, ETA, bouton Arreter pour chaque tache
+- **Tout lancer** : pipeline complet (categoriser + entites + indexer) en un clic
+- **Historique des audits** : rapports persistes en SQLite, consultables a tout moment
+- **Barre de notification** : progression des taches visible depuis n'importe quelle page
 
 ### OAuth Wizard
 
@@ -228,6 +231,9 @@ En plus de l'API upstream (messages, search, aggregates), le fork ajoute :
 | `GET /api/v1/tasks/{id}` | Statut d'une tache |
 | `POST /api/v1/tasks/{type}` | Lancer une tache IA |
 | `DELETE /api/v1/tasks/{id}` | Arreter une tache en cours |
+| `POST /api/v1/tasks/run-all` | Lancer le pipeline complet (cat+ner+idx) |
+| `GET /api/v1/audit-reports` | Historique des rapports d'audit |
+| `GET /api/v1/audit-reports/{id}` | Detail d'un rapport d'audit |
 
 Types de taches : `categorize`, `extract-entities`, `index`, `audit`, `audit-sensitive`
 
