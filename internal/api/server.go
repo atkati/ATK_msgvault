@@ -120,11 +120,11 @@ func (s *Server) setupRouter() chi.Router {
 	r.Head("/health", s.handleHealth)
 
 	// Web UI (no auth required — served only on localhost)
-	// Redirect /web to /web/ so relative asset URLs resolve correctly.
-	r.Get("/web", func(w http.ResponseWriter, r *http.Request) {
+	r.Mount("/web/", http.StripPrefix("/web", web.Handler()))
+	// Serve web UI at root too — redirect / to /web/ for asset resolution.
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/web/", http.StatusMovedPermanently)
 	})
-	r.Mount("/web/", http.StripPrefix("/web", web.Handler()))
 
 	// API routes (auth required)
 	r.Route("/api/v1", func(r chi.Router) {
