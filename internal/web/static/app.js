@@ -622,6 +622,19 @@
         });
     }
 
+    // ---- ETA calculation ----
+    function formatETA(task) {
+        if (task.status !== "running" || !task.started_at || task.progress <= 0 || task.total <= 0) return "";
+        var elapsed = (Date.now() - new Date(task.started_at).getTime()) / 1000; // seconds
+        if (elapsed < 5) return ""; // Not enough data yet.
+        var rate = task.progress / elapsed; // items/sec
+        if (rate <= 0) return "";
+        var remaining = (task.total - task.progress) / rate;
+        if (remaining < 60) return "~" + Math.round(remaining) + "s";
+        if (remaining < 3600) return "~" + Math.round(remaining / 60) + "min";
+        return "~" + (remaining / 3600).toFixed(1) + "h";
+    }
+
     // ---- Global task bar ----
     var taskBarPoll = null;
 
@@ -665,8 +678,10 @@
                 var name = typeNames[t.type] || t.type;
                 var statusClass = t.status;
                 var text = t.message || t.status;
+                var eta = formatETA(t);
                 if (t.status === "running" && t.total > 0) {
                     text = t.progress + "/" + t.total;
+                    if (eta) text += " (" + eta + ")";
                 }
                 return '<div class="task-bar-item ' + statusClass + '">' +
                     '<span class="tbi-label">' + name + '</span>' +
@@ -684,7 +699,10 @@
                     progEl.style.width = Math.round(t.progress / t.total * 100) + "%";
                 }
                 if (statusEl) {
-                    statusEl.textContent = t.message || t.status;
+                    var msg = t.message || t.status;
+                    var eta = formatETA(t);
+                    if (eta && t.status === "running") msg += " — " + eta + " restant";
+                    statusEl.textContent = msg;
                     statusEl.className = "action-status " + t.status;
                 }
                 if (t.status === "running" && btn) {
