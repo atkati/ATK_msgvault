@@ -317,7 +317,9 @@ func (tm *TaskManager) handleStartAudit(w http.ResponseWriter, r *http.Request) 
 	}
 	tm.setTask(task)
 
-	go tm.runAudit(task)
+	ctx, cancel := context.WithCancel(context.Background())
+	tm.registerCancel(task.ID, cancel)
+	go tm.runAudit(ctx, task)
 
 	writeJSON(w, http.StatusAccepted, task)
 }
@@ -346,7 +348,9 @@ func (tm *TaskManager) handleStartAuditSensitive(w http.ResponseWriter, r *http.
 	}
 	tm.setTask(task)
 
-	go tm.runAuditSensitive(task, totalBodies)
+	ctx, cancel := context.WithCancel(context.Background())
+	tm.registerCancel(task.ID, cancel)
+	go tm.runAuditSensitive(ctx, task, totalBodies)
 
 	writeJSON(w, http.StatusAccepted, task)
 }
@@ -558,6 +562,14 @@ func (tm *TaskManager) runExtractEntities(ctx context.Context, task *TaskStatus,
 	prompt := `Extrais les entites nommees : montant, iban, date, telephone, personne, entreprise, contrat, adresse. Reponds UNIQUEMENT avec un JSON : {"entities":[{"type":"...","value":"..."}]} /no_think`
 
 	for i, msgID := range ids {
+		if ctx.Err() != nil {
+			task.Status = "failed"
+			task.Error = "Annule"
+			task.Message = fmt.Sprintf("Arrete a %d/%d", i, len(ids))
+			tm.setTask(task)
+			return
+		}
+
 		subject, snippet, fromEmail, err := tm.store.GetMessageSnippetAndSubject(msgID)
 		if err != nil {
 			continue
@@ -642,6 +654,14 @@ func (tm *TaskManager) runIndex(ctx context.Context, task *TaskStatus, provider 
 	tm.setTask(task)
 
 	for i := 0; i < len(ids); i += 10 {
+		if ctx.Err() != nil {
+			task.Status = "failed"
+			task.Error = "Annule"
+			task.Message = fmt.Sprintf("Arrete a %d/%d", i, len(ids))
+			tm.setTask(task)
+			return
+		}
+
 		end := i + 10
 		if end > len(ids) {
 			end = len(ids)
@@ -684,7 +704,7 @@ func (tm *TaskManager) runIndex(ctx context.Context, task *TaskStatus, provider 
 	tm.setTask(task)
 }
 
-func (tm *TaskManager) runAudit(task *TaskStatus) {
+func (tm *TaskManager) runAudit(ctx context.Context, task *TaskStatus) {
 	var anomalyCount int
 
 	// High volume senders.
@@ -719,7 +739,7 @@ func (tm *TaskManager) runAudit(task *TaskStatus) {
 	tm.setTask(task)
 }
 
-func (tm *TaskManager) runAuditSensitive(task *TaskStatus, limit int) {
+func (tm *TaskManager) runAuditSensitive(ctx context.Context, task *TaskStatus, limit int) {
 	rows, err := tm.store.DB().Query(
 		`SELECT mb.message_id, COALESCE(mb.body_text,'') FROM message_bodies mb ORDER BY mb.message_id LIMIT ?`, limit,
 	)
@@ -733,11 +753,17 @@ func (tm *TaskManager) runAuditSensitive(task *TaskStatus, limit int) {
 
 	var scanned, detected int
 	for rows.Next() {
+		if ctx.Err() != nil {
+			task.Status = "failed"
+			task.Error = "Annule"
+			task.Message = fmt.Sprintf("Arrete a %d/%d (%d detectes)", scanned, task.Total, detected)
+			tm.setTask(task)
+			return
+		}
 		var msgID int64
 		var body string
 		rows.Scan(&msgID, &body)
 		scanned++
-		// Reuse the same regex patterns from audit_sensitive.go.
 		if ibanRE.MatchString(body) || cardRE.MatchString(body) || nirRE.MatchString(body) || passwordRE.MatchString(body) {
 			detected++
 		}
