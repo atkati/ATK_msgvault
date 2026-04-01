@@ -218,7 +218,7 @@ func NewDefaultConfig() *Config {
 			DefaultProvider: "off",
 			Local: AILocalConfig{
 				Endpoint:   "http://localhost:11434",
-				Model:      "mistral:7b",
+				Model:      "llama3.2",
 				EmbedModel: "nomic-embed-text",
 			},
 			Cloud: AICloudConfig{

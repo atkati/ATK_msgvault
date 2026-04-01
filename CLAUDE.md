@@ -68,6 +68,13 @@ make lint                     # Run linter
 ./msgvault import-emlx --account me@gmail.com         # Specific account(s)
 ./msgvault import-emlx /path/to/dir --identifier me@gmail.com  # Manual fallback
 
+# AI analysis (requires Ollama or cloud API)
+./msgvault ai categorize                                 # Classify uncategorized emails
+./msgvault ai categorize --ai local --limit 100          # Local Ollama, max 100
+./msgvault ai categorize --message 42 --dry-run          # Preview single message
+./msgvault ai extract-entities                            # Extract entities (amounts, IBAN, etc.)
+./msgvault ai extract-entities --message 42               # Single message
+
 # Export and purge
 ./msgvault export-report --domain uber.com              # CSV report for a domain
 ./msgvault export-report --sender x@y.com --output r.csv # Export to file
