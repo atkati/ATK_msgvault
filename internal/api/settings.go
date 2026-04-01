@@ -68,12 +68,31 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		resp.AI.CloudAPIKeySet = os.Getenv(s.cfg.AI.Cloud.APIKeyEnv) != ""
 	}
 
+	// Load accounts from config.
 	for _, acc := range s.cfg.Accounts {
 		resp.Accounts = append(resp.Accounts, AccountSettingsResponse{
 			Email:    acc.Email,
 			Schedule: acc.Schedule,
 			Enabled:  acc.Enabled,
 		})
+	}
+
+	// Also load accounts from database (sources table) if not already listed.
+	if s.engine != nil {
+		dbAccounts, err := s.engine.ListAccounts(r.Context())
+		if err == nil {
+			existing := make(map[string]bool)
+			for _, a := range resp.Accounts {
+				existing[a.Email] = true
+			}
+			for _, a := range dbAccounts {
+				if !existing[a.Identifier] {
+					resp.Accounts = append(resp.Accounts, AccountSettingsResponse{
+						Email: a.Identifier,
+					})
+				}
+			}
+		}
 	}
 
 	writeJSON(w, http.StatusOK, resp)
