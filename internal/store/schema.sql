@@ -413,6 +413,16 @@ CREATE TABLE IF NOT EXISTS ai_summaries (
 CREATE INDEX IF NOT EXISTS idx_ai_summaries_conv ON ai_summaries(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_ai_summaries_msg ON ai_summaries(message_id);
 
+-- Audit reports (persisted history)
+CREATE TABLE IF NOT EXISTS audit_reports (
+    id INTEGER PRIMARY KEY,
+    audit_type TEXT NOT NULL,       -- 'anomalies', 'sensitive'
+    results_json TEXT NOT NULL,     -- JSON array of findings
+    result_count INTEGER NOT NULL,
+    summary TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- AI embeddings for semantic search
 CREATE TABLE IF NOT EXISTS ai_embeddings (
     message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,

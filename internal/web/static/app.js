@@ -622,6 +622,80 @@
         });
     }
 
+    // ---- Audit history ----
+    function loadAuditHistory() {
+        var el = document.getElementById("audit-history");
+        if (!el) return;
+
+        apiFetch("/audit-reports").then(function (reports) {
+            if (!reports || reports.length === 0) {
+                el.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Aucun audit enregistre.</div>';
+                return;
+            }
+
+            var typeNames = { "anomalies": "Anomalies", "sensitive": "Donnees sensibles" };
+            el.innerHTML = '<div class="results-list" style="max-height:300px;">' +
+                reports.map(function (r) {
+                    return '<div class="result-item" style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;cursor:pointer;" data-report-id="' + r.id + '">' +
+                        '<div>' +
+                            '<strong>' + (typeNames[r.audit_type] || r.audit_type) + '</strong> ' +
+                            '<span style="color:var(--text-muted);">' + r.created_at + '</span>' +
+                        '</div>' +
+                        '<div>' +
+                            '<span style="color:var(--accent);">' + r.result_count + ' resultats</span>' +
+                        '</div>' +
+                    '</div>';
+                }).join("") +
+                '</div>';
+
+            el.querySelectorAll("[data-report-id]").forEach(function (row) {
+                row.addEventListener("click", function () {
+                    var id = row.getAttribute("data-report-id");
+                    loadAuditReportDetail(id, el);
+                });
+            });
+        }).catch(function () {
+            el.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Erreur de chargement.</div>';
+        });
+    }
+
+    function loadAuditReportDetail(id, container) {
+        apiFetch("/audit-reports/" + id).then(function (report) {
+            var results = report.results || [];
+            var html = '<div style="margin-top:0.5rem;padding:0.75rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);">';
+            html += '<div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;">';
+            html += '<strong>' + esc(report.summary) + '</strong>';
+            html += '<button onclick="loadAuditHistory()" style="background:none;border:1px solid var(--border);color:var(--text);padding:0.2rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.75rem;">&larr; Retour</button>';
+            html += '</div>';
+            html += '<div class="results-list" style="max-height:400px;">';
+
+            if (report.audit_type === "anomalies") {
+                results.forEach(function (r) {
+                    var cls = "result-" + (r.severity || "info");
+                    html += '<div class="result-item ' + cls + '">' +
+                        '<strong>' + esc(r.category || "") + '</strong> : ' + esc(r.message || "") +
+                        '</div>';
+                });
+            } else {
+                results.forEach(function (r) {
+                    html += '<div class="result-item">' +
+                        '<strong>' + esc(r.type || "") + '</strong> msg #' + (r.message_id || "") + ' : ' + esc(r.value || "") +
+                        '</div>';
+                });
+            }
+
+            html += '</div></div>';
+            container.innerHTML = html;
+
+            // Make the "Retour" button work.
+            container.querySelector("button").addEventListener("click", function () {
+                loadAuditHistory();
+            });
+        }).catch(function () {
+            container.innerHTML = '<div style="color:var(--danger);">Erreur de chargement du rapport.</div>';
+        });
+    }
+
     // ---- ETA calculation ----
     function formatETA(task) {
         if (task.status !== "running" || !task.started_at || task.progress <= 0 || task.total <= 0) return "";
@@ -775,7 +849,7 @@
                 e.preventDefault();
                 if (a.getAttribute("data-view") === "dashboard") loadDashboard();
                 else if (a.getAttribute("data-view") === "messages") loadMessages(1);
-                else if (a.getAttribute("data-view") === "actions") switchView("actions");
+                else if (a.getAttribute("data-view") === "actions") { switchView("actions"); loadAuditHistory(); }
                 else if (a.getAttribute("data-view") === "settings") loadSettings();
             });
         });
