@@ -176,6 +176,11 @@ func (s *Server) handleListOllamaModels(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleTriggerSyncWeb(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil {
+		writeError(w, http.StatusServiceUnavailable, "no_task_manager", "Task manager not available")
+		return
+	}
+
 	var req struct {
 		Account string `json:"account"`
 	}
@@ -187,29 +192,57 @@ func (s *Server) handleTriggerSyncWeb(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Launch sync as a subprocess using the same binary.
-	// This reuses the full sync logic (OAuth tokens, checkpoints, etc.)
-	// without coupling to the scheduler.
+	if s.taskManager.hasRunning("sync") {
+		writeError(w, http.StatusConflict, "already_running", "Une sync est deja en cours")
+		return
+	}
+
+	task := &TaskStatus{
+		ID:        fmt.Sprintf("sync-%d", time.Now().Unix()),
+		Type:      "sync",
+		Status:    "running",
+		Message:   fmt.Sprintf("Sync %s...", req.Account),
+		StartedAt: time.Now().Format(time.RFC3339),
+	}
+	s.taskManager.setTask(task)
+
+	go s.runSyncSubprocess(task, req.Account)
+
+	writeJSON(w, http.StatusAccepted, task)
+}
+
+func (s *Server) runSyncSubprocess(task *TaskStatus, account string) {
 	exe, err := os.Executable()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "exec_error", "Cannot find executable")
+		task.Status = "failed"
+		task.Error = "Cannot find executable: " + err.Error()
+		task.Message = task.Error
+		s.taskManager.setTask(task)
 		return
 	}
 
-	cmd := exec.Command(exe, "sync", req.Account)
+	cmd := exec.Command(exe, "sync", account)
 	cmd.Dir = s.cfg.HomeDir
-	if err := cmd.Start(); err != nil {
-		writeError(w, http.StatusInternalServerError, "sync_error",
-			fmt.Sprintf("Erreur lancement sync : %s", err.Error()))
-		return
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		task.Status = "failed"
+		task.Error = err.Error()
+		msg := string(output)
+		if len(msg) > 200 {
+			msg = msg[len(msg)-200:]
+		}
+		task.Message = fmt.Sprintf("Sync echouee : %s", msg)
+	} else {
+		task.Status = "completed"
+		msg := string(output)
+		if len(msg) > 200 {
+			msg = msg[len(msg)-200:]
+		}
+		task.Message = fmt.Sprintf("Sync terminee pour %s", account)
+		if msg != "" {
+			task.Message += " — " + msg
+		}
 	}
-
-	// Don't wait for the process — it runs in the background.
-	go cmd.Wait()
-
-	writeJSON(w, http.StatusAccepted, map[string]string{
-		"status":  "started",
-		"account": req.Account,
-		"message": fmt.Sprintf("Sync incrémentale lancée pour %s (PID %d)", req.Account, cmd.Process.Pid),
-	})
+	s.taskManager.setTask(task)
 }

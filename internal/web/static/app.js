@@ -562,8 +562,28 @@
             headers: apiHeaders(),
             body: JSON.stringify({ account: email })
         }).then(function (r) { return r.json(); }).then(function (d) {
-            statusEl.textContent = d.message || d.status || "Lance";
-            setTimeout(function () { btn.disabled = false; }, 5000);
+            if (d.id) {
+                // Poll task status.
+                statusEl.textContent = "En cours...";
+                var poll = setInterval(function () {
+                    apiFetch("/tasks/" + d.id).then(function (task) {
+                        statusEl.textContent = task.message || task.status;
+                        if (task.status === "completed" || task.status === "failed") {
+                            clearInterval(poll);
+                            btn.disabled = false;
+                            if (task.status === "completed") {
+                                statusEl.style.color = "var(--success)";
+                                loadStatsBar(); // Refresh stats.
+                            } else {
+                                statusEl.style.color = "var(--danger)";
+                            }
+                        }
+                    }).catch(function () { clearInterval(poll); btn.disabled = false; });
+                }, 3000);
+            } else {
+                statusEl.textContent = d.message || d.error || "Erreur";
+                btn.disabled = false;
+            }
         }).catch(function (err) {
             statusEl.textContent = "Erreur : " + err.message;
             btn.disabled = false;
