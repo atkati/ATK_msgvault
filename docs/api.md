@@ -679,6 +679,37 @@ After a successful sync triggered via `/sync-web`, the server automatically chai
 
 Each step only processes messages not yet handled. Steps are visible in the task list and can be cancelled individually.
 
+**POST /api/v1/tasks/run-all** — Manually trigger the full pipeline (same as auto-process but without sync).
+
+### Audit Reports History
+
+Audit results (anomalies and sensitive data scans) are persisted in SQLite and can be consulted at any time.
+
+**GET /api/v1/audit-reports** — List all saved audit reports (newest first).
+
+Response:
+```json
+[
+  {"id": 1, "audit_type": "anomalies", "result_count": 35, "summary": "35 anomalies detectees", "created_at": "01/04/2026 16:03"},
+  {"id": 2, "audit_type": "sensitive", "result_count": 174, "summary": "174 donnees sensibles dans 9968 messages", "created_at": "01/04/2026 16:10"}
+]
+```
+
+**GET /api/v1/audit-reports/{id}** — Get full report with results.
+
+Response includes `results` field with the complete JSON array of findings (anomalies or sensitive data matches).
+
+### Task Control
+
+All background tasks support cancellation via `DELETE /api/v1/tasks/{id}`.
+
+The web UI displays:
+- Progress bars with ETA (estimated time remaining)
+- A "Stop" button (red) that appears while a task is running
+- A notification bar at the bottom of the screen showing all active tasks
+- Completed audit results inline in the action cards
+- An "Audit History" section listing all past reports
+
 ## Deferred Enhancements
 
 These are tracked as follow-ups and not required for the initial merge:
