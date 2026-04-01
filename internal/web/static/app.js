@@ -382,6 +382,69 @@
         });
     }
 
+    // ---- Actions ----
+    var activePolls = {};
+
+    function startTask(taskType) {
+        var btn = document.getElementById("btn-" + taskType);
+        if (btn) btn.disabled = true;
+
+        var statusEl = document.getElementById("status-" + taskType);
+        if (statusEl) { statusEl.textContent = "Demarrage..."; statusEl.className = "action-status running"; }
+
+        fetch(API + "/tasks/" + taskType, { method: "POST", headers: apiHeaders() })
+            .then(function (r) { return r.json(); })
+            .then(function (task) {
+                if (task.id) pollTask(task.id, taskType);
+                else if (task.error) {
+                    if (statusEl) { statusEl.textContent = task.message || task.error; statusEl.className = "action-status failed"; }
+                    if (btn) btn.disabled = false;
+                }
+            })
+            .catch(function (err) {
+                if (statusEl) { statusEl.textContent = "Erreur : " + err.message; statusEl.className = "action-status failed"; }
+                if (btn) btn.disabled = false;
+            });
+    }
+
+    function pollTask(taskId, taskType) {
+        if (activePolls[taskType]) clearInterval(activePolls[taskType]);
+
+        activePolls[taskType] = setInterval(function () {
+            apiFetch("/tasks/" + taskId).then(function (task) {
+                var progEl = document.getElementById("prog-" + taskType);
+                var statusEl = document.getElementById("status-" + taskType);
+                var btn = document.getElementById("btn-" + taskType);
+
+                if (progEl && task.total > 0) {
+                    progEl.style.width = Math.round(task.progress / task.total * 100) + "%";
+                }
+                if (statusEl) {
+                    statusEl.textContent = task.message || task.status;
+                    statusEl.className = "action-status " + task.status;
+                }
+
+                if (task.status === "completed" || task.status === "failed") {
+                    clearInterval(activePolls[taskType]);
+                    delete activePolls[taskType];
+                    if (btn) btn.disabled = false;
+                    if (task.status === "completed" && progEl) progEl.style.width = "100%";
+                }
+            }).catch(function () {
+                clearInterval(activePolls[taskType]);
+                delete activePolls[taskType];
+            });
+        }, 2000);
+    }
+
+    function initActions() {
+        var tasks = ["categorize", "extract-entities", "index", "audit", "audit-sensitive"];
+        tasks.forEach(function (t) {
+            var btn = document.getElementById("btn-" + t);
+            if (btn) btn.addEventListener("click", function () { startTask(t); });
+        });
+    }
+
     // ---- Init ----
     function init() {
         initTheme();
@@ -396,6 +459,7 @@
                 e.preventDefault();
                 if (a.getAttribute("data-view") === "dashboard") loadDashboard();
                 else if (a.getAttribute("data-view") === "messages") loadMessages(1);
+                else if (a.getAttribute("data-view") === "actions") switchView("actions");
             });
         });
 
@@ -419,6 +483,9 @@
         document.addEventListener("keydown", function (e) {
             if (e.key === "Escape") document.getElementById("message-detail").classList.add("hidden");
         });
+
+        // Actions buttons.
+        initActions();
 
         // Load.
         loadStatsBar();

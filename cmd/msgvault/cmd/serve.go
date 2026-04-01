@@ -150,6 +150,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	apiServer := api.NewServerWithOptions(api.ServerOptions{
 		Config:    cfg,
 		Store:     storeAdapter,
+		RawStore:  s,
 		Engine:    engine,
 		Scheduler: schedAdapter,
 		Logger:    logger,
