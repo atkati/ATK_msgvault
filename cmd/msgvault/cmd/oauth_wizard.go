@@ -197,6 +197,17 @@ func runOAuthWizard(cmd *cobra.Command, args []string) error {
 	resp = strings.ToLower(strings.TrimSpace(resp))
 	if resp == "" || resp == "o" || resp == "oui" || resp == "y" || resp == "yes" {
 		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Lancement de l'autorisation Google...")
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "  Votre navigateur va s'ouvrir sur la page de connexion Google.")
+		fmt.Fprintln(out, "  Si Google affiche \"Cette application n'est pas validee\" :")
+		fmt.Fprintln(out, "    → Cliquez \"Parametres avances\"")
+		fmt.Fprintln(out, "    → Cliquez \"Acceder a msgvault (non securise)\"")
+		fmt.Fprintln(out, "  Puis autorisez l'acces a Gmail.")
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "  En attente de l'autorisation...")
+		fmt.Fprintln(out)
+
 		// Execute add-account in the same process.
 		addCmd := rootCmd
 		addCmd.SetArgs([]string{"add-account", email})
