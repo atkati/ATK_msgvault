@@ -63,12 +63,21 @@ func resolveAIProvider() (ai.AIProvider, error) {
 		}
 		model := cfg.AI.Local.Model
 		if model == "" {
-			model = "qwen3:4b"
+			model = "llama3.2"
 		}
 		if aiModel != "" {
 			model = aiModel
 		}
-		p := ai.NewLocalProvider(endpoint, model, cfg.AI.Local.EmbedModel)
+		// For embeddings: use dedicated embed model if set, otherwise
+		// fall back to the chat model (Ollama supports /api/embed for all models).
+		embedModel := cfg.AI.Local.EmbedModel
+		if aiModel != "" {
+			embedModel = aiModel
+		}
+		if embedModel == "" {
+			embedModel = model
+		}
+		p := ai.NewLocalProvider(endpoint, model, embedModel)
 		if !p.Available() {
 			return nil, fmt.Errorf("Ollama non disponible sur %s. Lancez 'ollama serve' ou utilisez --ai cloud", endpoint)
 		}

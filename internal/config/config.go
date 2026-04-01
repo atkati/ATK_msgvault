@@ -219,7 +219,7 @@ func NewDefaultConfig() *Config {
 			Local: AILocalConfig{
 				Endpoint:   "http://localhost:11434",
 				Model:      "llama3.2",
-				EmbedModel: "nomic-embed-text",
+				EmbedModel: "", // empty = use chat model for embeddings; set to nomic-embed-text if available
 			},
 			Cloud: AICloudConfig{
 				Endpoint:  "https://api.anthropic.com",
