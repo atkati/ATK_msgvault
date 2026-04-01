@@ -68,6 +68,12 @@ make lint                     # Run linter
 ./msgvault import-emlx --account me@gmail.com         # Specific account(s)
 ./msgvault import-emlx /path/to/dir --identifier me@gmail.com  # Manual fallback
 
+# Export and purge
+./msgvault export-report --domain uber.com              # CSV report for a domain
+./msgvault export-report --sender x@y.com --output r.csv # Export to file
+./msgvault suggest-purge                                 # Identify deletion candidates
+./msgvault suggest-purge --min-count 50                  # Custom threshold
+
 # User tags
 ./msgvault tag add 42 "SENSIBLE" --color "#ff0000"    # Add tag to message
 ./msgvault tag remove 42 "SENSIBLE"                   # Remove tag from message
