@@ -54,12 +54,14 @@ type Server struct {
 	server      *http.Server
 	rateLimiter *RateLimiter
 	cfgMu       sync.RWMutex // protects cfg.Accounts
+	taskManager *TaskManager
 }
 
 // ServerOptions configures the API server.
 type ServerOptions struct {
 	Config    *config.Config
 	Store     MessageStore
+	RawStore  *store.Store // Direct store access for tasks (AI, audit, etc.)
 	Engine    query.Engine // Optional: query engine for aggregates and TUI support
 	Scheduler SyncScheduler
 	Logger    *slog.Logger
@@ -83,6 +85,9 @@ func NewServerWithOptions(opts ServerOptions) *Server {
 		engine:    opts.Engine,
 		scheduler: opts.Scheduler,
 		logger:    opts.Logger,
+	}
+	if opts.RawStore != nil {
+		s.taskManager = NewTaskManager(opts.Config, opts.RawStore, opts.Logger)
 	}
 	s.router = s.setupRouter()
 	return s
@@ -159,6 +164,11 @@ func (s *Server) setupRouter() chi.Router {
 
 		// Token upload for headless OAuth
 		r.Post("/auth/token/{email}", s.handleUploadToken)
+
+		// Background tasks (AI, audit, etc.)
+		if s.taskManager != nil {
+			s.taskManager.RegisterRoutes(r)
+		}
 	})
 
 	return r

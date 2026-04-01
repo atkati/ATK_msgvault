@@ -35,6 +35,9 @@
                 <a href="#" class="sidebar-item" data-view="messages">
                     <span class="icon">&#9993;</span> Tous les messages
                 </a>
+                <a href="#" class="sidebar-item" data-view="actions">
+                    <span class="icon">&#9881;</span> Actions IA
+                </a>
             </div>
 
             <div class="sidebar-section">
@@ -67,6 +70,55 @@
                 </div>
                 <div id="message-list" class="message-list"></div>
                 <div id="pagination" class="pagination"></div>
+            </section>
+
+            <!-- Actions panel -->
+            <section id="view-actions" class="view">
+                <div class="section-header">
+                    <h2>Actions IA &amp; Maintenance</h2>
+                </div>
+                <div class="actions-grid">
+                    <div class="action-card" data-task="categorize">
+                        <div class="action-icon">&#129302;</div>
+                        <div class="action-title">Categoriser</div>
+                        <div class="action-desc">Classer les emails par categorie (administratif, facture, newsletter...)</div>
+                        <div class="action-bar"><div class="progress-fill" id="prog-categorize"></div></div>
+                        <div class="action-status" id="status-categorize">Pret</div>
+                        <button class="action-btn" id="btn-categorize">Lancer</button>
+                    </div>
+                    <div class="action-card" data-task="extract-entities">
+                        <div class="action-icon">&#128270;</div>
+                        <div class="action-title">Extraire les entites</div>
+                        <div class="action-desc">Montants, IBAN, telephones, noms, entreprises...</div>
+                        <div class="action-bar"><div class="progress-fill" id="prog-extract-entities"></div></div>
+                        <div class="action-status" id="status-extract-entities">Pret</div>
+                        <button class="action-btn" id="btn-extract-entities">Lancer</button>
+                    </div>
+                    <div class="action-card" data-task="index">
+                        <div class="action-icon">&#128200;</div>
+                        <div class="action-title">Indexer (embeddings)</div>
+                        <div class="action-desc">Generer les vecteurs pour la recherche semantique</div>
+                        <div class="action-bar"><div class="progress-fill" id="prog-index"></div></div>
+                        <div class="action-status" id="status-index">Pret</div>
+                        <button class="action-btn" id="btn-index">Lancer</button>
+                    </div>
+                    <div class="action-card" data-task="audit">
+                        <div class="action-icon">&#128269;</div>
+                        <div class="action-title">Audit anomalies</div>
+                        <div class="action-desc">Detecter les doublons, usurpations et volumes suspects</div>
+                        <div class="action-bar"><div class="progress-fill" id="prog-audit"></div></div>
+                        <div class="action-status" id="status-audit">Pret</div>
+                        <button class="action-btn" id="btn-audit">Lancer</button>
+                    </div>
+                    <div class="action-card" data-task="audit-sensitive">
+                        <div class="action-icon">&#128274;</div>
+                        <div class="action-title">Audit sensible</div>
+                        <div class="action-desc">Scanner les IBAN, mots de passe, numeros de carte...</div>
+                        <div class="action-bar"><div class="progress-fill" id="prog-audit-sensitive"></div></div>
+                        <div class="action-status" id="status-audit-sensitive">Pret</div>
+                        <button class="action-btn" id="btn-audit-sensitive">Lancer</button>
+                    </div>
+                </div>
             </section>
 
             <!-- Search results -->

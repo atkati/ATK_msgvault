@@ -348,6 +348,68 @@ main {
 .pagination button:disabled { opacity: 0.3; cursor: default; }
 .page-info { font-size: 0.8rem; color: var(--text-muted); }
 
+/* ---- Actions grid ---- */
+.actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.action-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.action-icon { font-size: 1.8rem; }
+.action-title { font-weight: 600; font-size: 1rem; }
+.action-desc { font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; }
+
+.action-bar {
+    height: 6px;
+    background: var(--bg-hover);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 0.25rem;
+}
+.progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.5s ease;
+}
+
+.action-status {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+}
+.action-status.running { color: var(--accent); }
+.action-status.completed { color: var(--success); }
+.action-status.failed { color: var(--danger); }
+
+.action-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    align-self: flex-start;
+    transition: opacity 0.2s;
+}
+.action-btn:hover { opacity: 0.85; }
+.action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 /* ---- States ---- */
 .loading { text-align: center; padding: 3rem; color: var(--text-dim); }
 .empty { text-align: center; padding: 3rem; color: var(--text-dim); }
