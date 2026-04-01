@@ -38,21 +38,40 @@ type TaskStatus struct {
 
 // TaskManager manages background tasks.
 type TaskManager struct {
-	mu    sync.RWMutex
-	tasks map[string]*TaskStatus
-	cfg   *config.Config
-	store *store.Store
-	log   *slog.Logger
+	mu      sync.RWMutex
+	tasks   map[string]*TaskStatus
+	cancels map[string]context.CancelFunc
+	cfg     *config.Config
+	store   *store.Store
+	log     *slog.Logger
 }
 
 // NewTaskManager creates a task manager.
 func NewTaskManager(cfg *config.Config, st *store.Store, log *slog.Logger) *TaskManager {
 	return &TaskManager{
-		tasks: make(map[string]*TaskStatus),
-		cfg:   cfg,
-		store: st,
-		log:   log,
+		tasks:   make(map[string]*TaskStatus),
+		cancels: make(map[string]context.CancelFunc),
+		cfg:     cfg,
+		store:   st,
+		log:     log,
 	}
+}
+
+func (tm *TaskManager) registerCancel(id string, cancel context.CancelFunc) {
+	tm.mu.Lock()
+	tm.cancels[id] = cancel
+	tm.mu.Unlock()
+}
+
+func (tm *TaskManager) cancelTask(id string) bool {
+	tm.mu.Lock()
+	cancel, ok := tm.cancels[id]
+	if ok {
+		cancel()
+		delete(tm.cancels, id)
+	}
+	tm.mu.Unlock()
+	return ok
 }
 
 func (tm *TaskManager) getTask(id string) *TaskStatus {
@@ -97,6 +116,7 @@ func (tm *TaskManager) allTasks() []TaskStatus {
 func (tm *TaskManager) RegisterRoutes(r chi.Router) {
 	r.Get("/tasks", tm.handleListTasks)
 	r.Get("/tasks/{id}", tm.handleGetTask)
+	r.Delete("/tasks/{id}", tm.handleCancelTask)
 	r.Post("/tasks/categorize", tm.handleStartCategorize)
 	r.Post("/tasks/extract-entities", tm.handleStartExtractEntities)
 	r.Post("/tasks/index", tm.handleStartIndex)
@@ -116,6 +136,26 @@ func (tm *TaskManager) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
+}
+
+func (tm *TaskManager) handleCancelTask(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	t := tm.getTask(id)
+	if t == nil {
+		writeError(w, http.StatusNotFound, "not_found", "Task not found")
+		return
+	}
+	if t.Status != "running" {
+		writeError(w, http.StatusBadRequest, "not_running", "Task is not running")
+		return
+	}
+	if tm.cancelTask(id) {
+		t.Status = "failed"
+		t.Error = "Annule par l'utilisateur"
+		t.Message = fmt.Sprintf("Arrete a %d/%d", t.Progress, t.Total)
+		tm.setTask(t)
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
 }
 
 func (tm *TaskManager) handleStartCategorize(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +185,9 @@ func (tm *TaskManager) handleStartCategorize(w http.ResponseWriter, r *http.Requ
 	}
 	tm.setTask(task)
 
-	go tm.runCategorize(task, provider, limit)
+	ctx, cancel := context.WithCancel(context.Background())
+	tm.registerCancel(task.ID, cancel)
+	go tm.runCategorize(ctx, task, provider, limit)
 
 	writeJSON(w, http.StatusAccepted, task)
 }
@@ -177,7 +219,9 @@ func (tm *TaskManager) handleStartExtractEntities(w http.ResponseWriter, r *http
 	}
 	tm.setTask(task)
 
-	go tm.runExtractEntities(task, provider, limit)
+	ctx, cancel := context.WithCancel(context.Background())
+	tm.registerCancel(task.ID, cancel)
+	go tm.runExtractEntities(ctx, task, provider, limit)
 
 	writeJSON(w, http.StatusAccepted, task)
 }
@@ -209,7 +253,9 @@ func (tm *TaskManager) handleStartIndex(w http.ResponseWriter, r *http.Request) 
 	}
 	tm.setTask(task)
 
-	go tm.runIndex(task, provider, limit)
+	ctx, cancel := context.WithCancel(context.Background())
+	tm.registerCancel(task.ID, cancel)
+	go tm.runIndex(ctx, task, provider, limit)
 
 	writeJSON(w, http.StatusAccepted, task)
 }
@@ -317,8 +363,7 @@ func (tm *TaskManager) resolveProvider() (ai.AIProvider, error) {
 
 // Task runners (background goroutines).
 
-func (tm *TaskManager) runCategorize(task *TaskStatus, provider ai.AIProvider, limit int) {
-	ctx := context.Background()
+func (tm *TaskManager) runCategorize(ctx context.Context, task *TaskStatus, provider ai.AIProvider, limit int) {
 
 	ids, err := tm.store.ListUncategorizedMessageIDs(limit)
 	if err != nil {
@@ -336,6 +381,14 @@ func (tm *TaskManager) runCategorize(task *TaskStatus, provider ai.AIProvider, l
 
 	var errors int
 	for i, msgID := range ids {
+		if ctx.Err() != nil {
+			task.Status = "failed"
+			task.Error = "Annule"
+			task.Message = fmt.Sprintf("Arrete a %d/%d", i, len(ids))
+			tm.setTask(task)
+			return
+		}
+
 		subject, snippet, fromEmail, err := tm.store.GetMessageSnippetAndSubject(msgID)
 		if err != nil {
 			errors++
@@ -444,8 +497,7 @@ func trimSuffix(s, suffix string) string {
 	return s
 }
 
-func (tm *TaskManager) runExtractEntities(task *TaskStatus, provider ai.AIProvider, limit int) {
-	ctx := context.Background()
+func (tm *TaskManager) runExtractEntities(ctx context.Context, task *TaskStatus, provider ai.AIProvider, limit int) {
 
 	ids, err := listMsgsWithoutEntities(tm.store, limit)
 	if err != nil {
@@ -531,8 +583,7 @@ func listMsgsWithoutEntities(st *store.Store, limit int) ([]int64, error) {
 	return ids, nil
 }
 
-func (tm *TaskManager) runIndex(task *TaskStatus, provider ai.AIProvider, limit int) {
-	ctx := context.Background()
+func (tm *TaskManager) runIndex(ctx context.Context, task *TaskStatus, provider ai.AIProvider, limit int) {
 
 	ids, err := tm.store.ListMessageIDsWithoutEmbedding(limit)
 	if err != nil {

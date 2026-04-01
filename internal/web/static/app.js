@@ -385,26 +385,53 @@
     // ---- Actions ----
     var activePolls = {};
 
+    var runningTaskIds = {}; // taskType -> taskId
+
     function startTask(taskType) {
         var btn = document.getElementById("btn-" + taskType);
-        if (btn) btn.disabled = true;
-
         var statusEl = document.getElementById("status-" + taskType);
+
+        // If already running, cancel it.
+        if (runningTaskIds[taskType]) {
+            fetch(API + "/tasks/" + runningTaskIds[taskType], { method: "DELETE", headers: apiHeaders() })
+                .then(function () {
+                    if (statusEl) { statusEl.textContent = "Arrete"; statusEl.className = "action-status failed"; }
+                    setBtnStop(btn, false);
+                    delete runningTaskIds[taskType];
+                }).catch(function () {});
+            return;
+        }
+
+        setBtnStop(btn, true);
         if (statusEl) { statusEl.textContent = "Demarrage..."; statusEl.className = "action-status running"; }
 
         fetch(API + "/tasks/" + taskType, { method: "POST", headers: apiHeaders() })
             .then(function (r) { return r.json(); })
             .then(function (task) {
-                if (task.id) pollTask(task.id, taskType);
-                else if (task.error) {
+                if (task.id) {
+                    runningTaskIds[taskType] = task.id;
+                    pollTask(task.id, taskType);
+                } else if (task.error) {
                     if (statusEl) { statusEl.textContent = task.message || task.error; statusEl.className = "action-status failed"; }
-                    if (btn) btn.disabled = false;
+                    setBtnStop(btn, false);
                 }
             })
             .catch(function (err) {
                 if (statusEl) { statusEl.textContent = "Erreur : " + err.message; statusEl.className = "action-status failed"; }
-                if (btn) btn.disabled = false;
+                setBtnStop(btn, false);
             });
+    }
+
+    function setBtnStop(btn, running) {
+        if (!btn) return;
+        btn.disabled = false;
+        if (running) {
+            btn.textContent = "Arreter";
+            btn.style.background = "var(--danger)";
+        } else {
+            btn.textContent = "Lancer";
+            btn.style.background = "";
+        }
     }
 
     function pollTask(taskId, taskType) {
@@ -427,12 +454,14 @@
                 if (task.status === "completed" || task.status === "failed") {
                     clearInterval(activePolls[taskType]);
                     delete activePolls[taskType];
-                    if (btn) btn.disabled = false;
+                    delete runningTaskIds[taskType];
+                    setBtnStop(btn, false);
                     if (task.status === "completed" && progEl) progEl.style.width = "100%";
                 }
             }).catch(function () {
                 clearInterval(activePolls[taskType]);
                 delete activePolls[taskType];
+                delete runningTaskIds[taskType];
             });
         }, 2000);
     }
