@@ -408,7 +408,10 @@
         fetch(API + "/tasks/" + taskType, { method: "POST", headers: apiHeaders() })
             .then(function (r) { return r.json(); })
             .then(function (task) {
-                if (task.id) {
+                if (task.status === "nothing_to_do") {
+                    if (statusEl) { statusEl.textContent = task.message; statusEl.className = "action-status completed"; }
+                    setBtnStop(btn, false);
+                } else if (task.id) {
                     runningTaskIds[taskType] = task.id;
                     pollTask(task.id, taskType);
                 } else if (task.error) {
