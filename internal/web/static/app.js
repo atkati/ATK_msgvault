@@ -134,6 +134,26 @@
             });
     }
 
+    // parseFilterQuery detects structured filters (label:, from:, domain:)
+    // and returns {endpoint, params} for the right API call.
+    function buildSearchURL(q, page) {
+        var offset = (page - 1) * PAGE_SIZE;
+
+        // Detect single-filter queries and use /messages/filter endpoint.
+        var m;
+        m = q.match(/^label:(.+)$/i);
+        if (m) return "/messages/filter?label=" + encodeURIComponent(m[1]) + "&limit=" + PAGE_SIZE + "&offset=" + offset;
+
+        m = q.match(/^from:(.+)$/i);
+        if (m) return "/messages/filter?sender=" + encodeURIComponent(m[1]) + "&limit=" + PAGE_SIZE + "&offset=" + offset;
+
+        m = q.match(/^domain:(.+)$/i);
+        if (m) return "/messages/filter?domain=" + encodeURIComponent(m[1]) + "&limit=" + PAGE_SIZE + "&offset=" + offset;
+
+        // Default: full-text search.
+        return "/search?q=" + encodeURIComponent(q) + "&page_size=" + PAGE_SIZE + "&page=" + page;
+    }
+
     function loadSearch(page) {
         state.searchPage = page || 1;
         var q = state.searchQuery;
@@ -143,17 +163,23 @@
         var pag = document.getElementById("search-pagination");
         list.innerHTML = '<div class="loading">Recherche...</div>';
 
-        apiFetch("/search?q=" + encodeURIComponent(q) + "&page_size=" + PAGE_SIZE + "&page=" + state.searchPage)
+        var url = buildSearchURL(q, state.searchPage);
+
+        apiFetch(url)
             .then(function (data) {
                 var messages = data.messages || [];
-                var total = data.total || 0;
+                var total = data.total || messages.length;
                 if (messages.length === 0) {
                     list.innerHTML = '<div class="empty">Aucun resultat pour "' + escapeHtml(q) + '".</div>';
                     pag.innerHTML = "";
                     return;
                 }
                 list.innerHTML = messages.map(renderMessageItem).join("");
-                renderPagination(pag, state.searchPage, total, loadSearch);
+                if (total > PAGE_SIZE) {
+                    renderPagination(pag, state.searchPage, total, loadSearch);
+                } else {
+                    pag.innerHTML = '<span class="page-info">' + total + ' resultats</span>';
+                }
                 bindMessageClicks(list);
             })
             .catch(function (err) {
