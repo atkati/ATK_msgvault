@@ -5,14 +5,15 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
-	"strings"
 )
 
 //go:embed static/*
 var staticFiles embed.FS
 
 // Handler returns an http.Handler serving the embedded web UI.
-// Files are served under the /web/ prefix. Requests to /web or /web/ serve index.html.
+// Expected to be mounted at /web via chi.Mount("/web", web.Handler()).
+// chi strips the /web prefix before calling the handler, so paths arrive as
+// "/" for the index page and "/style.css", "/app.js" for assets.
 func Handler() http.Handler {
 	sub, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -21,20 +22,19 @@ func Handler() http.Handler {
 
 	fileServer := http.FileServer(http.FS(sub))
 
-	// Pre-read index.html for direct serving.
+	// Pre-read index.html for direct serving (avoids FileServer redirects).
 	indexHTML, err := fs.ReadFile(sub, "index.html")
 	if err != nil {
 		panic("web: read index.html: " + err.Error())
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/web")
-		if path == "" || path == "/" {
+		// Serve index.html at root.
+		if r.URL.Path == "/" || r.URL.Path == "" {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Write(indexHTML)
 			return
 		}
-		r.URL.Path = path
 		fileServer.ServeHTTP(w, r)
 	})
 }
