@@ -445,6 +445,131 @@
         });
     }
 
+    // ---- Settings ----
+    function loadSettings() {
+        switchView("settings");
+
+        // Load current settings.
+        apiFetch("/settings").then(function (s) {
+            document.getElementById("set-provider").value = s.ai.default_provider || "off";
+            document.getElementById("set-endpoint").value = s.ai.local_endpoint || "http://localhost:11434";
+
+            // Load accounts for sync.
+            var syncEl = document.getElementById("sync-accounts");
+            if (s.accounts && s.accounts.length > 0) {
+                syncEl.innerHTML = s.accounts.map(function (a) {
+                    return '<div class="sync-account-row">' +
+                        '<span class="sync-account-email">' + esc(a.email) + '</span>' +
+                        '<div><button class="sync-btn" data-email="' + esc(a.email) + '">Synchroniser</button>' +
+                        '<span class="sync-status"></span></div></div>';
+                }).join("");
+                syncEl.querySelectorAll(".sync-btn").forEach(function (btn) {
+                    btn.addEventListener("click", function () { triggerSync(btn); });
+                });
+            } else {
+                // List accounts from stats endpoint.
+                apiFetch("/accounts").then(function (accs) {
+                    var accounts = accs.accounts || accs || [];
+                    if (!accounts.length) {
+                        syncEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Aucun compte configure. Utilisez msgvault add-account en ligne de commande.</div>';
+                        return;
+                    }
+                    syncEl.innerHTML = accounts.map(function (a) {
+                        var email = a.email || a.identifier || "";
+                        return '<div class="sync-account-row">' +
+                            '<span class="sync-account-email">' + esc(email) + '</span>' +
+                            '<div><button class="sync-btn" data-email="' + esc(email) + '">Synchroniser</button>' +
+                            '<span class="sync-status"></span></div></div>';
+                    }).join("");
+                    syncEl.querySelectorAll(".sync-btn").forEach(function (btn) {
+                        btn.addEventListener("click", function () { triggerSync(btn); });
+                    });
+                }).catch(function () {
+                    syncEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Impossible de charger les comptes.</div>';
+                });
+            }
+
+            // Pre-select current model after loading models list.
+            loadOllamaModels(s.ai.local_model, s.ai.local_embed_model);
+        }).catch(function (err) {
+            document.getElementById("settings-status").textContent = "Erreur : " + err.message;
+        });
+    }
+
+    function loadOllamaModels(currentModel, currentEmbed) {
+        apiFetch("/ollama/models").then(function (models) {
+            var sel = document.getElementById("set-model");
+            var embedSel = document.getElementById("set-embed-model");
+
+            sel.innerHTML = models.map(function (m) {
+                var label = m.name;
+                if (m.parameter_size) label += " (" + m.parameter_size + ")";
+                var selected = (m.name === currentModel) ? " selected" : "";
+                return '<option value="' + esc(m.name) + '"' + selected + '>' + esc(label) + '</option>';
+            }).join("");
+
+            embedSel.innerHTML = '<option value="">Meme que le modele</option>' +
+                models.map(function (m) {
+                    var label = m.name;
+                    if (m.parameter_size) label += " (" + m.parameter_size + ")";
+                    var selected = (m.name === currentEmbed) ? " selected" : "";
+                    return '<option value="' + esc(m.name) + '"' + selected + '>' + esc(label) + '</option>';
+                }).join("");
+
+            if (!models.length) {
+                sel.innerHTML = '<option value="">Ollama non disponible</option>';
+            }
+        }).catch(function () {
+            document.getElementById("set-model").innerHTML = '<option value="">Ollama non disponible</option>';
+        });
+    }
+
+    function saveSettings() {
+        var update = {
+            default_provider: document.getElementById("set-provider").value,
+            local_model: document.getElementById("set-model").value,
+            local_embed_model: document.getElementById("set-embed-model").value,
+            local_endpoint: document.getElementById("set-endpoint").value
+        };
+
+        fetch(API + "/settings", {
+            method: "PUT",
+            headers: apiHeaders(),
+            body: JSON.stringify(update)
+        }).then(function (r) { return r.json(); }).then(function (d) {
+            var statusEl = document.getElementById("settings-status");
+            if (d.status === "saved") {
+                statusEl.textContent = "Enregistre !";
+                statusEl.style.color = "var(--success)";
+            } else {
+                statusEl.textContent = d.message || "Erreur";
+                statusEl.style.color = "var(--danger)";
+            }
+            setTimeout(function () { statusEl.textContent = ""; }, 3000);
+        }).catch(function (err) {
+            document.getElementById("settings-status").textContent = "Erreur : " + err.message;
+        });
+    }
+
+    function triggerSync(btn) {
+        var email = btn.getAttribute("data-email");
+        btn.disabled = true;
+        var statusEl = btn.parentElement.querySelector(".sync-status");
+        statusEl.textContent = "Lancement...";
+
+        fetch(API + "/sync-web", {
+            method: "POST",
+            headers: apiHeaders(),
+            body: JSON.stringify({ account: email })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+            statusEl.textContent = d.message || d.status || "Lance";
+            setTimeout(function () { btn.disabled = false; }, 5000);
+        }).catch(function (err) {
+            statusEl.textContent = "Erreur : " + err.message;
+            btn.disabled = false;
+        });
+    }
+
     // ---- Init ----
     function init() {
         initTheme();
@@ -460,6 +585,7 @@
                 if (a.getAttribute("data-view") === "dashboard") loadDashboard();
                 else if (a.getAttribute("data-view") === "messages") loadMessages(1);
                 else if (a.getAttribute("data-view") === "actions") switchView("actions");
+                else if (a.getAttribute("data-view") === "settings") loadSettings();
             });
         });
 
@@ -486,6 +612,9 @@
 
         // Actions buttons.
         initActions();
+
+        // Settings save button.
+        document.getElementById("btn-save-settings").addEventListener("click", saveSettings);
 
         // Load.
         loadStatsBar();

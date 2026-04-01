@@ -348,6 +348,51 @@ main {
 .pagination button:disabled { opacity: 0.3; cursor: default; }
 .page-info { font-size: 0.8rem; color: var(--text-muted); }
 
+/* ---- Settings ---- */
+.settings-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}
+.settings-card h3 {
+    font-size: 0.95rem; font-weight: 600; margin-bottom: 1rem;
+    padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+}
+.setting-row {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+.setting-row label {
+    min-width: 160px; font-size: 0.85rem; color: var(--text-muted);
+}
+.setting-row select, .setting-row input {
+    flex: 1; background: var(--bg-input); color: var(--text);
+    border: 1px solid var(--border); padding: 0.4rem 0.75rem;
+    border-radius: var(--radius-sm); font-size: 0.85rem;
+}
+.setting-row input:focus, .setting-row select:focus {
+    outline: none; border-color: var(--accent);
+}
+.settings-status {
+    font-size: 0.8rem; margin-left: 0.75rem; color: var(--success);
+}
+.sync-account-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+}
+.sync-account-row:last-child { border-bottom: none; }
+.sync-account-email { font-size: 0.9rem; }
+.sync-btn {
+    background: var(--accent); color: #fff; border: none;
+    padding: 0.35rem 0.75rem; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 0.8rem;
+}
+.sync-btn:hover { opacity: 0.85; }
+.sync-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sync-status { font-size: 0.75rem; color: var(--text-dim); margin-left: 0.5rem; }
+
 /* ---- Actions grid ---- */
 .actions-grid {
     display: grid;
