@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,14 +27,31 @@ var (
 
 // TaskStatus represents the state of a background task.
 type TaskStatus struct {
-	ID        string `json:"id"`
+	ID        string      `json:"id"`
+	Type      string      `json:"type"`
+	Status    string      `json:"status"` // "running", "completed", "failed"
+	Progress  int         `json:"progress"`
+	Total     int         `json:"total"`
+	Message   string      `json:"message"`
+	StartedAt string      `json:"started_at"`
+	Error     string      `json:"error,omitempty"`
+	Results   interface{} `json:"results,omitempty"` // Task-specific results (audit findings, etc.)
+}
+
+// AuditAnomaly represents a finding from the audit.
+type AuditAnomaly struct {
+	Severity string `json:"severity"` // critique, attention, info
+	Category string `json:"category"`
+	Message  string `json:"message"`
+	Details  string `json:"details,omitempty"`
+}
+
+// SensitiveMatch represents a sensitive data finding.
+type SensitiveMatch struct {
+	MessageID int64  `json:"message_id"`
 	Type      string `json:"type"`
-	Status    string `json:"status"` // "running", "completed", "failed"
-	Progress  int    `json:"progress"`
-	Total     int    `json:"total"`
-	Message   string `json:"message"`
-	StartedAt string `json:"started_at"`
-	Error     string `json:"error,omitempty"`
+	Value     string `json:"value"`
+	Context   string `json:"context"`
 }
 
 // TaskManager manages background tasks.
@@ -705,37 +723,64 @@ func (tm *TaskManager) runIndex(ctx context.Context, task *TaskStatus, provider 
 }
 
 func (tm *TaskManager) runAudit(ctx context.Context, task *TaskStatus) {
-	var anomalyCount int
+	var anomalies []AuditAnomaly
 
 	// High volume senders.
-	rows, err := tm.store.DB().Query(
-		`SELECT COUNT(*) FROM (SELECT p.email_address, COUNT(*) as cnt FROM messages m
+	hvRows, err := tm.store.DB().Query(
+		`SELECT p.email_address, COUNT(*) as cnt FROM messages m
 		 JOIN message_recipients mr ON mr.message_id = m.id AND mr.recipient_type = 'from'
 		 JOIN participants p ON p.id = mr.participant_id WHERE p.email_address != ''
-		 GROUP BY p.email_address HAVING cnt > 200)`,
+		 GROUP BY p.email_address HAVING cnt > 200 ORDER BY cnt DESC LIMIT 20`,
 	)
 	if err == nil {
-		defer rows.Close()
-		if rows.Next() {
-			rows.Scan(&anomalyCount)
+		defer hvRows.Close()
+		for hvRows.Next() {
+			var email string
+			var count int
+			hvRows.Scan(&email, &count)
+			anomalies = append(anomalies, AuditAnomaly{
+				Severity: "info",
+				Category: "Volume eleve",
+				Message:  fmt.Sprintf("%s : %d messages", email, count),
+			})
 		}
 	}
 
 	// Duplicate subjects.
-	var dupeCount int
-	tm.store.DB().QueryRow(
-		`SELECT COUNT(*) FROM (SELECT COUNT(*) as cnt FROM messages m
+	dupeRows, err := tm.store.DB().Query(
+		`SELECT p.email_address, m.subject, COUNT(*) as cnt FROM messages m
 		 JOIN message_recipients mr ON mr.message_id = m.id AND mr.recipient_type = 'from'
 		 JOIN participants p ON p.id = mr.participant_id
 		 WHERE m.subject IS NOT NULL AND m.subject != '' AND p.email_address != ''
-		 GROUP BY p.email_address, m.subject HAVING cnt >= 3)`,
-	).Scan(&dupeCount)
-	anomalyCount += dupeCount
+		 GROUP BY p.email_address, m.subject HAVING cnt >= 3 ORDER BY cnt DESC LIMIT 30`,
+	)
+	if err == nil {
+		defer dupeRows.Close()
+		for dupeRows.Next() {
+			var email, subject string
+			var count int
+			dupeRows.Scan(&email, &subject, &count)
+			sev := "attention"
+			if count >= 5 {
+				sev = "critique"
+			}
+			subj := subject
+			if len(subj) > 50 {
+				subj = subj[:50] + "..."
+			}
+			anomalies = append(anomalies, AuditAnomaly{
+				Severity: sev,
+				Category: "Sujet duplique",
+				Message:  fmt.Sprintf("%s x%d de %s", subj, count, email),
+			})
+		}
+	}
 
 	task.Status = "completed"
-	task.Progress = anomalyCount
-	task.Total = anomalyCount
-	task.Message = fmt.Sprintf("%d anomalies detectees", anomalyCount)
+	task.Progress = len(anomalies)
+	task.Total = len(anomalies)
+	task.Results = anomalies
+	task.Message = fmt.Sprintf("%d anomalies detectees", len(anomalies))
 	tm.setTask(task)
 }
 
@@ -752,6 +797,7 @@ func (tm *TaskManager) runAuditSensitive(ctx context.Context, task *TaskStatus, 
 	defer rows.Close()
 
 	var scanned, detected int
+	var findings []SensitiveMatch
 	for rows.Next() {
 		if ctx.Err() != nil {
 			task.Status = "failed"
@@ -764,9 +810,34 @@ func (tm *TaskManager) runAuditSensitive(ctx context.Context, task *TaskStatus, 
 		var body string
 		rows.Scan(&msgID, &body)
 		scanned++
-		if ibanRE.MatchString(body) || cardRE.MatchString(body) || nirRE.MatchString(body) || passwordRE.MatchString(body) {
-			detected++
+
+		// Check each pattern and record matches.
+		for _, check := range []struct {
+			re   *regexp.Regexp
+			name string
+		}{
+			{ibanRE, "IBAN"},
+			{cardRE, "Carte bancaire"},
+			{nirRE, "NIR"},
+			{passwordRE, "Mot de passe"},
+		} {
+			matches := check.re.FindAllString(body, 3)
+			for _, val := range matches {
+				detected++
+				if len(findings) < 500 { // Cap results to avoid memory issues.
+					v := val
+					if check.name == "IBAN" || check.name == "Carte bancaire" || check.name == "NIR" {
+						v = maskSensitiveValue(v)
+					}
+					findings = append(findings, SensitiveMatch{
+						MessageID: msgID,
+						Type:      check.name,
+						Value:     v,
+					})
+				}
+			}
 		}
+
 		if scanned%500 == 0 {
 			task.Progress = scanned
 			task.Message = fmt.Sprintf("%d scannes, %d detectes", scanned, detected)
@@ -777,8 +848,17 @@ func (tm *TaskManager) runAuditSensitive(ctx context.Context, task *TaskStatus, 
 	task.Status = "completed"
 	task.Progress = scanned
 	task.Total = scanned
+	task.Results = findings
 	task.Message = fmt.Sprintf("%d donnees sensibles dans %d messages", detected, scanned)
 	tm.setTask(task)
+}
+
+func maskSensitiveValue(val string) string {
+	clean := strings.ReplaceAll(val, " ", "")
+	if len(clean) <= 6 {
+		return val
+	}
+	return clean[:4] + strings.Repeat("*", len(clean)-6) + clean[len(clean)-2:]
 }
 
 // runAutoProcess chains AI tasks after a sync: categorize → extract entities → index.
